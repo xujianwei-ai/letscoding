@@ -4,3 +4,15 @@ out/
 .runtime/
 .runtime-build/
 build/
+
+# DSH dependencies
+dsh-learning/deepseek-harness/node_modules/
+dsh-learning/deepseek-harness/.runtime-build/
+dsh-learning/deepseek-harness/out/
+dsh-learning/deepseek-harness/dist/
+dsh-learning/deepseek-harness/*.tsbuildinfo
+dsh-learning/deepseek-harness/.pnpm-store/
+
+# Build outputs
+out/
+build/
