@@ -116,7 +116,7 @@
       ]
     },
     "configuration": {
-      "title": "Private Coding Agent",
+      "title": "LetsCoding",
       "properties": {
         "privateCodingAgent.runtimeMode": {
           "type": "string",
