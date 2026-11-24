@@ -35,11 +35,23 @@ A VS Code coding agent with graceful stop, checkpoint rollback, and warm session
 
 ### Quick Install
 
-Download the latest `.vsix` from [Releases](https://github.com/xujianwei-ai/letscoding/releases) and install:
+Download the latest `.vsix` from [Releases](https://github.com/xujianwei-ai/letscoding/releases).
+
+#### Recommended: Manual Install
+
+1. Open VS Code
+2. Go to **Extensions** view (`Ctrl+Shift+X`)
+3. Click **"..."** (More Actions) → **"Install from VSIX..."**
+4. Select the downloaded `.vsix` file
+5. Reload VS Code when prompted
+
+#### Alternative: Command Line
 
 ```bash
-code --install-extension letscoding-1.0.0-linux-x64.vsix
+code --install-extension letscoding-1.0.0-linux-x64.vsix --force
 ```
+
+> **Note**: If the extension does not appear after CLI install, use the manual method above or restart VS Code.
 
 The VSIX bundles Node.js and the DSH runtime—no external dependencies required.
 
@@ -157,11 +169,23 @@ Built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DS
 
 ### 快速安装
 
-从 [Releases](https://github.com/xujianwei-ai/letscoding/releases) 下载最新 `.vsix` 并安装：
+从 [Releases](https://github.com/xujianwei-ai/letscoding/releases) 下载最新 `.vsix`。
+
+#### 推荐：手动安装
+
+1. 打开 VS Code
+2. 进入 **扩展** 视图（`Ctrl+Shift+X`）
+3. 点击 **"..."**（更多操作）→ **"从 VSIX 安装..."**
+4. 选择下载的 `.vsix` 文件
+5. 按提示重新加载 VS Code
+
+#### 备选：命令行
 
 ```bash
-code --install-extension letscoding-1.0.0-linux-x64.vsix
+code --install-extension letscoding-1.0.0-linux-x64.vsix --force
 ```
+
+> **注意**：如果命令行安装后扩展未显示，请使用上述手动安装方式或重启 VS Code。
 
 VSIX 已捆绑 Node.js 和 DSH 运行时，无需外部依赖。
 
