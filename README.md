@@ -61,17 +61,23 @@ The VSIX bundles Node.js and the DSH runtime—no external dependencies required
 #### Steps
 
 ```bash
-# Clone with DSH submodule
-git clone --recursive https://github.com/xujianwei-ai/letscoding.git
-cd letscoding/vscode-coding-agent
+# Clone the repository
+git clone https://github.com/xujianwei-ai/letscoding.git
+cd letscoding
 
 # Install dependencies
 npm install
 
-# Compile
+# Compile TypeScript
 npm run compile
 
-# Package VSIX (includes runtime baseline, staging, and packaging)
+# Generate runtime baseline from bundled DSH source
+npm run runtime:baseline
+
+# Stage runtime (downloads Node.js if needed)
+npm run runtime:stage
+
+# Package VSIX
 npm run vsix:package
 
 # Output: letscoding-1.0.0-linux-x64.vsix
@@ -93,15 +99,15 @@ VSCODE_AGENT_SUITE=cancel-integration-suite.cjs node scripts/vscode-integration.
 ### Architecture
 
 ```
-vscode-coding-agent/          # VS Code extension
-├── src/                      # TypeScript source
-├── media/                    # Webview frontend
-├── scripts/                  # Build & test scripts
-├── docs/                     # Feature documentation
-└── .runtime-build/           # Bundled Node/DSH runtime (generated)
-
-../dsh-learning/deepseek-harness/  # DSH runtime (git submodule)
-└── packages/sdk/             # JSON-RPC SDK with session/cancel support
+letscoding/                    # Repository root
+├── src/                       # VS Code extension TypeScript source
+├── media/                     # Webview frontend
+├── scripts/                   # Build & test scripts
+├── docs/                      # Feature documentation & screenshots
+├── dsh-learning/
+│   └── deepseek-harness/      # DSH runtime source (with session/cancel)
+├── .runtime-build/            # Generated: Node.js + DSH runtime closure
+└── package.json               # Extension manifest
 ```
 
 ### License
@@ -177,17 +183,23 @@ VSIX 已捆绑 Node.js 和 DSH 运行时，无需外部依赖。
 #### 步骤
 
 ```bash
-# 克隆（含 DSH 子模块）
-git clone --recursive https://github.com/xujianwei-ai/letscoding.git
-cd letscoding/vscode-coding-agent
+# 克隆仓库
+git clone https://github.com/xujianwei-ai/letscoding.git
+cd letscoding
 
 # 安装依赖
 npm install
 
-# 编译
+# 编译 TypeScript
 npm run compile
 
-# 打包 VSIX（包含运行时基线、暂存和打包）
+# 从内置 DSH 源码生成运行时基线
+npm run runtime:baseline
+
+# 暂存运行时（需要时自动下载 Node.js）
+npm run runtime:stage
+
+# 打包 VSIX
 npm run vsix:package
 
 # 输出：letscoding-1.0.0-linux-x64.vsix
@@ -209,15 +221,15 @@ VSCODE_AGENT_SUITE=cancel-integration-suite.cjs node scripts/vscode-integration.
 ### 架构
 
 ```
-vscode-coding-agent/          # VS Code 扩展
-├── src/                      # TypeScript 源码
-├── media/                    # Webview 前端
-├── scripts/                  # 构建与测试脚本
-├── docs/                     # 功能文档
-└── .runtime-build/           # 捆绑的 Node/DSH 运行时（生成）
-
-../dsh-learning/deepseek-harness/  # DSH 运行时（git 子模块）
-└── packages/sdk/             # 支持 session/cancel 的 JSON-RPC SDK
+letscoding/                    # 仓库根目录
+├── src/                       # VS Code 扩展 TypeScript 源码
+├── media/                     # Webview 前端
+├── scripts/                   # 构建与测试脚本
+├── docs/                      # 功能文档与截图
+├── dsh-learning/
+│   └── deepseek-harness/      # DSH 运行时源码（含 session/cancel）
+├── .runtime-build/            # 生成：Node.js + DSH 运行时闭包
+└── package.json               # 扩展清单
 ```
 
 ### 许可证

@@ -29,7 +29,7 @@ vscode-coding-agent/          # 扩展根目录
 │   └── FEATURE_INDEX.md      # 功能索引（自动生成）
 └── .runtime-build/           # 打包时生成的 Node/DSH 闭包
 
-../dsh-learning/deepseek-harness/  # DSH 运行时（独立项目）
+./dsh-learning/deepseek-harness/  # DSH 运行时（独立项目）
 ```
 
 ## 快速开始
@@ -79,7 +79,7 @@ code --install-extension letscoding-0.0.5-linux-x64.vsix --force
 
 ## 相关项目
 
-- **DSH 运行时**: `../dsh-learning/deepseek-harness/` — 模型、工具、会话持久化
+- **DSH 运行时**: `./dsh-learning/deepseek-harness/` — 模型、工具、会话持久化
   - 修改前阅读其 `AGENTS.md`
 
 ## 关键约束

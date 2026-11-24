@@ -5,7 +5,7 @@ const os = require('node:os')
 const { baselinePath, validateLock } = require('./runtime-baseline.cjs')
 const { createClosure, collectClosure, inspectNative, isCompatible, assertNoHostPaths, main, generatedPath, stagedInventory } = require('./runtime-closure.cjs')
 
-const repository = path.resolve(__dirname, '../../dsh-learning/deepseek-harness')
+const repository = path.resolve(__dirname, './dsh-learning/deepseek-harness')
 const lock = JSON.parse(fs.readFileSync(baselinePath, 'utf8'))
 const baseline = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../build/runtime-baseline.json'), 'utf8'))
 assert.ok(validateLock(lock).dsh.productionClosure.roots.includes('@deepseek-ai/dsh-sdk-app'))

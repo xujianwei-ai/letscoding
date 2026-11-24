@@ -41,8 +41,8 @@
     "test:workbench-e2e": "npm run compile && node --check scripts/workbench-e2e-suite.cjs && VSCODE_AGENT_SUITE=workbench-e2e-suite.cjs VSCODE_AGENT_WORKSPACE=../.vscode-agent-dev/workbench-e2e-workspace VSCODE_AGENT_USER_DATA=../.vscode-agent-dev/test-user-workbench-e2e node scripts/vscode-integration.cjs"
   },
   "dependencies": {
-    "@deepseek-ai/dsh": "file:../dsh-learning/deepseek-harness/apps/cli",
-    "@deepseek-ai/dsh-sdk-client": "file:../dsh-learning/deepseek-harness/packages/sdk/client",
+    "@deepseek-ai/dsh": "file:./dsh-learning/deepseek-harness/apps/cli",
+    "@deepseek-ai/dsh-sdk-client": "file:./dsh-learning/deepseek-harness/packages/sdk/client",
     "argparse": "^2.0.1",
     "diff": "^9.0.0",
     "js-yaml": "^4.3.2"

@@ -39,7 +39,7 @@ src/extension.ts  消息校验、HTML、设置、VS Code 集成
        │ AgentController：按 sessionId 路由与选择
 src/agent.ts      每个 Session 的写 Host、事件、检查点和 Diff
        │ src/runtime.ts：普通 Node / 网络环境 / stdio JSON-RPC
-./deepseek-harness  模型、工具、会话持久化
+./dsh-learning/deepseek-harness  模型、工具、会话持久化
 ```
 
 | 层 | 拥有者 | 职责 | 边界 |
@@ -47,7 +47,7 @@ src/agent.ts      每个 Session 的写 Host、事件、检查点和 Diff
 | `webview` | `media/webview.js + src/extension.ts:html` | 展示、编辑、用户交互与临时 UI 状态；不直接读写工作区或 DSH。 | 仅通过 postMessage 与扩展通信；刷新会丢失未持久化的视图状态。 |
 | `controller` | `src/extension.ts + src/agentController.ts` | 验证 Webview 消息、选择目标 Session、协调读写 Host、保存工作区选择。 | Webview 关闭不销毁运行中的任务；后台 Session 的事件不能直接覆盖当前视图。 |
 | `session-runtime` | `src/agent.ts + src/checkpoints.ts + src/inlineDiff.ts` | 一个持久 Session 的写 Host、轮次事件、工具、文件快照和编辑器效果。 | 一个活跃写 Host 只能属于一个 Session；跨 Session 操作必须携带目标 sessionId。 |
-| `dsh` | `src/runtime.ts + ./deepseek-harness` | 普通 Node 进程、SDK JSON-RPC、模型与工具、持久化会话。 | 扩展不拥有模型或工具实现；外部接口和本地补丁见 integrations，不把密钥放入扩展配置。 |
+| `dsh` | `src/runtime.ts + ./dsh-learning/deepseek-harness` | 普通 Node 进程、SDK JSON-RPC、模型与工具、持久化会话。 | 扩展不拥有模型或工具实现；外部接口和本地补丁见 integrations，不把密钥放入扩展配置。 |
 
 
 **权威数据**：DSH 的 Session 日志是历史事实来源；`AgentController.liveViews` 是内存投影；`CheckpointStore` 是扩展自己的文件恢复事实来源；Webview 不是这些数据的权威存储。
@@ -909,37 +909,37 @@ src/agent.ts      每个 Session 的写 Host、事件、检查点和 Diff
 
 ### sdk-client
 
-- **位置**：[`./deepseek-harness/packages/sdk/client/src/api.ts`](../deepseek-harness/packages/sdk/client/src/api.ts)<br>`DeepSeekHarness`<br>`HarnessSession`<br>`DeepSeekHarness.start`<br>`DeepSeekHarness.resumeSession`<br>`DeepSeekHarness.listModels`<br>`DeepSeekHarness.listSessions`<br>`DeepSeekHarness.sessionHistory`<br>`DeepSeekHarness.discoverModels`<br>`DeepSeekHarness.testModel`<br>`DeepSeekHarness.saveProvider`<br>`DeepSeekHarness.deleteProvider`<br>`DeepSeekHarness.providerConfig`<br>`HarnessSession.run`<br>`HarnessSession.rewind`
+- **位置**：[`./dsh-learning/deepseek-harness/packages/sdk/client/src/api.ts`](../dsh-learning/deepseek-harness/packages/sdk/client/src/api.ts)<br>`DeepSeekHarness`<br>`HarnessSession`<br>`DeepSeekHarness.start`<br>`DeepSeekHarness.resumeSession`<br>`DeepSeekHarness.listModels`<br>`DeepSeekHarness.listSessions`<br>`DeepSeekHarness.sessionHistory`<br>`DeepSeekHarness.discoverModels`<br>`DeepSeekHarness.testModel`<br>`DeepSeekHarness.saveProvider`<br>`DeepSeekHarness.deleteProvider`<br>`DeepSeekHarness.providerConfig`<br>`HarnessSession.run`<br>`HarnessSession.rewind`
 - **用途**：Host 生命周期、目录/历史读取、模型路由、临时模型发现与测试、私密凭据保存、继续会话及原地 rewind。
 - **修改边界**：DSH；修改后运行扩展真实集成测试，不假设 npm 包行为等于本地源码。
 
 ### sdk-transport
 
-- **位置**：[`./deepseek-harness/packages/sdk/client/src/launch.ts`](../deepseek-harness/packages/sdk/client/src/launch.ts)<br>`resolveDshLaunch`
+- **位置**：[`./dsh-learning/deepseek-harness/packages/sdk/client/src/launch.ts`](../dsh-learning/deepseek-harness/packages/sdk/client/src/launch.ts)<br>`resolveDshLaunch`
 - **用途**：公开 nodePath 指定普通 Node 子进程，dshBin 选择已编译 CLI，保留 stdio JSON-RPC、超时、审批和关闭。
 - **修改边界**：DSH；传输、进程或超时修改需同时验证 Electron 启动和真实模型调用。
 
 ### session-controller
 
-- **位置**：[`./deepseek-harness/packages/api/session-controller/src/index.ts`](../deepseek-harness/packages/api/session-controller/src/index.ts)<br>`SessionController`
+- **位置**：[`./dsh-learning/deepseek-harness/packages/api/session-controller/src/index.ts`](../dsh-learning/deepseek-harness/packages/api/session-controller/src/index.ts)<br>`SessionController`
 - **用途**：SDK 精简 profile 中历史、目录与 rewind 所需的 API。
 - **修改边界**：DSH；本地补丁，不等同于上游完整 Web profile。
 
 ### sdk-profile
 
-- **位置**：[`./deepseek-harness/apps/cli/src/sdk-source.cordis.patch.yml`](../deepseek-harness/apps/cli/src/sdk-source.cordis.patch.yml)<br>`session-controller`
+- **位置**：[`./dsh-learning/deepseek-harness/apps/cli/src/sdk-source.cordis.patch.yml`](../dsh-learning/deepseek-harness/apps/cli/src/sdk-source.cordis.patch.yml)<br>`session-controller`
 - **用途**：源码启动时注入扩展所需的 SDK profile 插件。
 - **修改边界**：DSH；新增插件须检查包依赖、profile 装载顺序与 FiberState 源码启动兼容性。
 
 ### session-storage
 
-- **位置**：[`./deepseek-harness/packages/session/session-persistence-jsonl/src/format.ts`](../deepseek-harness/packages/session/session-persistence-jsonl/src/format.ts)<br>`encodeSegment`<br>`projectKey`
+- **位置**：[`./dsh-learning/deepseek-harness/packages/session/session-persistence-jsonl/src/format.ts`](../dsh-learning/deepseek-harness/packages/session/session-persistence-jsonl/src/format.ts)<br>`encodeSegment`<br>`projectKey`
 - **用途**：会话 JSONL 目录、项目键和删除范围；扩展必须复用相同路径编码。
 - **修改边界**：DSH 持久化格式；禁止未经迁移与兼容审查改变已发布数据格式。
 
 ### model-providers
 
-- **位置**：[`./deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts`](../deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts)<br>`PiAiAdapter`
+- **位置**：[`./dsh-learning/deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts`](../dsh-learning/deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts)<br>`PiAiAdapter`
 - **用途**：Kimi 等 pi-ai 模型请求、流式输出、重试错误映射。
 - **修改边界**：DSH；模型连接问题先核对实际 Host 代理与请求头，不归因于 Webview。
 

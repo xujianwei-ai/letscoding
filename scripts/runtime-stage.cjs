@@ -20,7 +20,7 @@ function run(command, args, cwd) {
 }
 
 function stage(options = {}) {
-  const repository = options.repository ?? path.resolve(root, '../dsh-learning/deepseek-harness')
+  const repository = options.repository ?? path.resolve(root, './dsh-learning/deepseek-harness')
   const destination = options.destination ?? path.join(root, '.runtime-build/dsh')
   const closure = createClosure(readJson(path.join(root, 'config/runtime-baseline.json')), fs.realpathSync(repository), { requireBuilt: false })
   const packageOwners = new Map()
@@ -154,7 +154,7 @@ function verifyStagedPackages(pending, closure) {
 if (require.main === module) {
   try {
     const result = process.argv.includes('--verify-only')
-      ? (verifyStagedPackages(path.join(root, '.runtime-build/dsh.staging'), createClosure(config, path.resolve(root, '../dsh-learning/deepseek-harness'))), undefined)
+      ? (verifyStagedPackages(path.join(root, '.runtime-build/dsh.staging'), createClosure(config, path.resolve(root, './dsh-learning/deepseek-harness'))), undefined)
       : stage()
     if (!result) process.exit(0)
     console.log(`DSH staged: ${result.destination}`)

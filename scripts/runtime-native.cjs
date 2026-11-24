@@ -54,7 +54,7 @@ function nativeProbe(options = {}) {
 }
 
 function packedInstall(options = {}) {
-  const repository = options.repository ?? path.resolve(root, '../dsh-learning/deepseek-harness')
+  const repository = options.repository ?? path.resolve(root, './dsh-learning/deepseek-harness')
   const source = path.join(repository, 'native/system/packages/entry/node_modules/@deepseek-ai/node-addon-system-linux-x64')
   const entry = path.join(repository, 'native/system/packages/entry')
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-native-install-'))

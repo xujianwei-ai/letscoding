@@ -36,7 +36,7 @@ async function main() {
   fs.rmSync(missingRoot, { recursive: true, force: true })
   assert.throws(() => harnessLaunchOptions({
     dshHome: root, cwd: root, extensionRoot: missingRoot,
-    dshRepository: path.resolve(root, '../dsh-learning/deepseek-harness'),
+    dshRepository: path.resolve(root, './dsh-learning/deepseek-harness'),
     nodePath: path.join(root, '.runtime-build/node/bin/node'),
     processEnv: { DSH_NODE_PATH: path.join(root, '.runtime-build/node/bin/node') },
   }), /内置运行时.*缺少文件.*不会回退到开发环境/s)

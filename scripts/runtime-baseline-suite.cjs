@@ -6,7 +6,7 @@ const path = require('node:path')
 const { baselinePath, sha256, validateLock, sourceFiles, createBaseline, main } = require('./runtime-baseline.cjs')
 
 const root = path.resolve(__dirname, '..')
-const repository = path.resolve(root, '../dsh-learning/deepseek-harness')
+const repository = path.resolve(root, './dsh-learning/deepseek-harness')
 const lock = JSON.parse(fs.readFileSync(baselinePath, 'utf8'))
 assert.equal(validateLock(lock).node.version, '24.9.0')
 assert.equal(lock.dsh.profile.patches.length, 2)

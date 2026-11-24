@@ -19,7 +19,7 @@ function readSource(relative, projectRoot = root) {
   const absolute = path.resolve(projectRoot, relative)
   const contained = absolute === projectRoot || absolute.startsWith(projectRoot + path.sep)
   const discoveryGuide = relative === '../AGENTS.md' || relative === '../.cursor/rules/feature-index.mdc'
-  if (!contained && !discoveryGuide && !relative.startsWith('../dsh-learning/deepseek-harness/')) throw new Error(`路径超出允许的项目或 DSH 范围: ${relative}`)
+  if (!contained && !discoveryGuide && !relative.startsWith('./dsh-learning/deepseek-harness/')) throw new Error(`路径超出允许的项目或 DSH 范围: ${relative}`)
   if (!fs.existsSync(absolute) || !fs.statSync(absolute).isFile()) throw new Error(`索引路径不存在: ${relative}`)
   return fs.readFileSync(absolute, 'utf8')
 }
@@ -170,7 +170,7 @@ function renderIndex(catalog) {
       ['权限与网络安全', featureLink('approval') + '、' + featureLink('host-launch'), 'Host 重建、凭据、沙箱、单次审批', '`npm run test:approval`'],
     ]), '',
     '## 2. 系统边界与状态归属', '',
-    '```text', 'media/webview.js  交互与临时视图状态', '       │ postMessage（本目录 §5）', 'src/extension.ts  消息校验、HTML、设置、VS Code 集成', '       │ AgentController：按 sessionId 路由与选择', 'src/agent.ts      每个 Session 的写 Host、事件、检查点和 Diff', '       │ src/runtime.ts：普通 Node / 网络环境 / stdio JSON-RPC', '../dsh-learning/deepseek-harness  模型、工具、会话持久化', '```', '',
+    '```text', 'media/webview.js  交互与临时视图状态', '       │ postMessage（本目录 §5）', 'src/extension.ts  消息校验、HTML、设置、VS Code 集成', '       │ AgentController：按 sessionId 路由与选择', 'src/agent.ts      每个 Session 的写 Host、事件、检查点和 Diff', '       │ src/runtime.ts：普通 Node / 网络环境 / stdio JSON-RPC', './dsh-learning/deepseek-harness  模型、工具、会话持久化', '```', '',
     table(['层', '拥有者', '职责', '边界'], catalog.architecture.map(item => [code(item.id), code(item.owner), item.responsibility, item.boundary])), '',
     '**权威数据**：DSH 的 Session 日志是历史事实来源；`AgentController.liveViews` 是内存投影；`CheckpointStore` 是扩展自己的文件恢复事实来源；Webview 不是这些数据的权威存储。', '',
     '## 3. 功能总目录', '',

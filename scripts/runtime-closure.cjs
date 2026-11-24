@@ -504,7 +504,7 @@ function createClosure(lock, repository, options = {}) {
 function main(args = process.argv.slice(2), options = {}) {
   assert.ok(args.every(arg => ['--check', '--require-built', '--package-preview'].includes(arg)), `未知参数；支持 --check、--require-built、--package-preview: ${args.join(' ')}`)
   const lock = readJson(options.baselinePath ?? baselinePath)
-  const repository = fs.realpathSync(options.repository ?? path.resolve(root, '../dsh-learning/deepseek-harness'))
+  const repository = fs.realpathSync(options.repository ?? path.resolve(root, './dsh-learning/deepseek-harness'))
   const staging = options.staging ?? path.join(root, lock.dsh.productionClosure.stagingDirectory)
   const requireBuilt = options.requireBuilt ?? !args.includes('--package-preview')
   if (requireBuilt) assert.ok(fs.existsSync(staging), `发布暂存区不存在；先执行 ${lock.dsh.productionClosure.strictCommand}`)

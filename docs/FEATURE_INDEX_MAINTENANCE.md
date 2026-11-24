@@ -30,7 +30,7 @@
 - 修改模型切换时，区分“逐轮 route 覆盖”和“Host 启动配置”。模型切换不应像权限/网络一样无条件重启 Host。
 - 修改会话或事件时，验证快速切换、后台任务、Webview 重载、迟到响应和停止/关闭竞态。
 - 修改检查点时，保留路径限制、敏感文件排除、轮末哈希、手工修改保护、共享 blob 引用和旧格式读取。恢复是写操作，必须验证预览后文件未变化。
-- 修改 DSH 接口时，先阅读 `../dsh-learning/deepseek-harness/AGENTS.md`。索引仅登记接口，不授予绕开上游测试和持久化规则的权限。
+- 修改 DSH 接口时，先阅读 `./dsh-learning/deepseek-harness/AGENTS.md`。索引仅登记接口，不授予绕开上游测试和持久化规则的权限。
 - 功能行为、入口或责任改变时更新 `summary/flow/invariants`；文件或符号改名时更新 `entry/modules/integrations`，不依赖行号。
 
 ## 4. 删除功能

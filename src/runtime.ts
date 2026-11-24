@@ -182,6 +182,6 @@ export function createHarness(options: AgentRuntimeOptions): DeepSeekHarness {
 /** Resolve the sibling development checkout only for this private development extension. */
 export function developmentRepository(): string | undefined {
   const extensionRoot = resolve(import.meta.dirname, '..')
-  const candidate = resolve(extensionRoot, '../dsh-learning/deepseek-harness')
+  const candidate = resolve(extensionRoot, './dsh-learning/deepseek-harness')
   return existsSync(resolve(candidate, 'apps/cli/src/bin.ts')) ? candidate : undefined
 }

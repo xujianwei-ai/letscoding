@@ -170,7 +170,7 @@ function main(args = process.argv.slice(2), options = {}) {
   assert.ok(args.every(arg => allowed.has(arg) || arg.startsWith('--dsh-repository=')), `未知参数；支持 --check、--dsh-repository=<path>: ${args.join(' ')}`)
   const check = args.includes('--check')
   const repository = options.repository ?? args.find(arg => arg.startsWith('--dsh-repository='))?.slice('--dsh-repository='.length)
-    ?? path.resolve(root, '../dsh-learning/deepseek-harness')
+    ?? path.resolve(root, './dsh-learning/deepseek-harness')
   const lock = readJson(options.baselinePath ?? baselinePath)
   const output = createBaseline(lock, repository, options)
   const serialized = `${JSON.stringify(output, null, 2)}\n`

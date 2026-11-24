@@ -27,7 +27,7 @@
     },
     {
       "id": "dsh",
-      "owner": "src/runtime.ts + ../dsh-learning/deepseek-harness",
+      "owner": "src/runtime.ts + ./dsh-learning/deepseek-harness",
       "responsibility": "普通 Node 进程、SDK JSON-RPC、模型与工具、持久化会话。",
       "boundary": "扩展不拥有模型或工具实现；外部接口和本地补丁见 integrations，不把密钥放入扩展配置。"
     }
@@ -35,7 +35,7 @@
   "integrations": [
     {
       "id": "sdk-client",
-      "path": "../dsh-learning/deepseek-harness/packages/sdk/client/src/api.ts",
+      "path": "./dsh-learning/deepseek-harness/packages/sdk/client/src/api.ts",
       "symbols": [
         "DeepSeekHarness",
         "HarnessSession",
@@ -57,7 +57,7 @@
     },
     {
       "id": "sdk-transport",
-      "path": "../dsh-learning/deepseek-harness/packages/sdk/client/src/launch.ts",
+      "path": "./dsh-learning/deepseek-harness/packages/sdk/client/src/launch.ts",
       "symbols": [
         "resolveDshLaunch"
       ],
@@ -66,7 +66,7 @@
     },
     {
       "id": "session-controller",
-      "path": "../dsh-learning/deepseek-harness/packages/api/session-controller/src/index.ts",
+      "path": "./dsh-learning/deepseek-harness/packages/api/session-controller/src/index.ts",
       "symbols": [
         "SessionController"
       ],
@@ -75,7 +75,7 @@
     },
     {
       "id": "sdk-profile",
-      "path": "../dsh-learning/deepseek-harness/apps/cli/src/sdk-source.cordis.patch.yml",
+      "path": "./dsh-learning/deepseek-harness/apps/cli/src/sdk-source.cordis.patch.yml",
       "symbols": [
         "session-controller"
       ],
@@ -84,7 +84,7 @@
     },
     {
       "id": "session-storage",
-      "path": "../dsh-learning/deepseek-harness/packages/session/session-persistence-jsonl/src/format.ts",
+      "path": "./dsh-learning/deepseek-harness/packages/session/session-persistence-jsonl/src/format.ts",
       "symbols": [
         "encodeSegment",
         "projectKey"
@@ -94,7 +94,7 @@
     },
     {
       "id": "model-providers",
-      "path": "../dsh-learning/deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts",
+      "path": "./dsh-learning/deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts",
       "symbols": [
         "PiAiAdapter"
       ],

@@ -1,0 +1,3 @@
+- insert:
+    - id: my-memory-plugin
+      name: '@local/my-memory-plugin'

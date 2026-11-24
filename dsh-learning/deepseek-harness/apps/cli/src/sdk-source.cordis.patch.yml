@@ -1,0 +1,9 @@
+# Clean source checkouts have no build-generated Typert contributor modules.
+# The SDK JSON-RPC application does not consume the Typert remote gateway;
+# installed builds retain the complete dsh-base row.
+- id: typert-loader
+  disabled: true
+
+# The SDK's cold Session fork uses the Host controller over stdio; no HTTP gateway.
+- id: session-controller
+  name: '@deepseek-ai/dsh-api-session-controller'
