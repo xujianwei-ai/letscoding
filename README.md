@@ -134,7 +134,7 @@ letscoding/                    # Repository root
 
 ### Acknowledgments
 
-Built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), an open-source AI agent runtime.
+Built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), an open-source AI agent runtime. LetsCoding is an independent project and is not affiliated with or endorsed by DeepSeek.
 
 ---
 
@@ -268,4 +268,4 @@ letscoding/                    # 仓库根目录
 
 ### 致谢
 
-基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 构建，一个开源 AI 代理运行时。
+基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 构建，一个开源 AI 代理运行时。LetsCoding 是独立项目，与 DeepSeek 无隶属或背书关系。
