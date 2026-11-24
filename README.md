@@ -12,6 +12,10 @@ A VS Code coding agent with graceful stop, checkpoint rollback, and warm session
 |:---:|:---:|:---:|
 | ![历史消息回滚](docs/images/4、历史消息回滚.png) | ![沙箱权限设置](docs/images/5、沙箱权限设置.png) | ![模型下拉选择](docs/images/6、模型下拉选择.png) |
 
+| 本地图片上传 |
+|:---:|
+| ![支持本地图片上传](docs/images/7、支持本地图片上传.png) |
+
 ## Features
 
 - **Graceful Stop** — Cancel active turns without killing the Host process; partial output is preserved and follow-up prompts resume instantly
