@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "platform": {
+    "os": "linux",
+    "arch": "x64",
+    "libc": "glibc",
+    "scope": "首批仅支持 Linux x64 glibc；musl、macOS、arm64 和 Windows 不在此基线内。"
+  },
+  "node": {
+    "version": "24.9.0",
+    "origin": "https://nodejs.org/dist/",
+    "archive": "node-v24.9.0-linux-x64.tar.xz",
+    "sha256": "f52ec50e959d72d5c680d9731420b2661cd2a8070e94c7369b6ddfcd8b7278be",
+    "checksumManifest": "SHASUMS256.txt",
+    "checksumsSha256": "32b6a9cbb3d28cfad6f19cba160e93d96082947dcd454b7940995bdfa593d3e4",
+    "license": "LICENSE",
+    "archiveLayout": "bin/node 与 LICENSE；运行时 Node 通过 Node-API 加载原生组件，不使用 Electron ABI。",
+    "executable": "bin/node",
+    "prepareCommand": "npm run runtime:node"
+  },
+  "dsh": {
+    "sourceKind": "local-git-worktree-snapshot",
+    "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
+    "version": "0.2.2-rc.1",
+    "packageManager": "pnpm@11.28.5",
+    "buildNode": ">=24.9.0",
+    "installCommand": "node node_modules/pnpm/bin/pnpm.cjs install --frozen-lockfile --offline",
+    "artifactCommand": "node node_modules/tsx/dist/cli.mjs scripts/build.ts --scope artifacts",
+    "checkCommand": "node node_modules/tsx/dist/cli.mjs scripts/build.ts --scope check",
+    "toolchain": [
+      "package.json:packageManager",
+      "node_modules/pnpm/package.json:version",
+      "node_modules/typescript/package.json:version",
+      "node_modules/tsx/package.json:version",
+      "node_modules/tsdown/package.json:version"
+    ],
+    "entrypoints": [
+      {
+        "mode": "bundled",
+        "source": "apps/cli/src/installed-bin.ts",
+        "artifact": "apps/cli/lib/bin.js",
+        "config": "apps/cli/tsdown.config.ts",
+        "requirement": "仅运行编译后 JS；不需要 tsx、tsconfig 或源码目录。"
+      },
+      {
+        "mode": "source",
+        "source": "apps/cli/src/installed-bin.ts",
+        "artifact": "apps/cli/lib/bin.js",
+        "config": "apps/cli/tsdown.config.ts",
+        "requirement": "仅显式开发模式；执行已构建的 CLI 与源码补丁，不由扩展加载 tsx，不能进入 VSIX 发布路径。"
+      }
+    ],
+    "profile": {
+      "name": "sdk",
+      "definition": "packages/util/official-bundles/src/bundles.ts:PROFILE_TEMPLATES.sdk",
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-sdk-app"
+      ],
+      "patches": [
+        "packages/bundle/base/cordis.patch.yml",
+        "packages/bundle/sdk-app/cordis.patch.yml"
+      ],
+      "extensionPatches": [
+        {
+          "path": "apps/cli/src/sdk-source.cordis.patch.yml",
+          "mode": "source",
+          "purpose": "禁用源码 checkout 的 Typert contributor；已构建 SDK profile 自带冷 Session fork 所需 SessionController，不重复添加。"
+        },
+        {
+          "path": "packages/bundle/sdk-app/cordis.patch.yml",
+          "mode": "bundled",
+          "purpose": "编译安装包内 sdk profile 自带 SessionController；发布路径不得叠加 source 补丁。"
+        }
+      ],
+      "runtimeGeneratedPatches": [
+        {
+          "name": "session-controller",
+          "source": "apps/cli/src/sdk-source.cordis.patch.yml",
+          "status": "源码补丁固定声明；编译 profile 已包含 SessionController，不生成重复补丁。"
+        },
+        {
+          "name": "web-providers-<hash>.yml",
+          "source": "src/runtime.ts:webProviderPatch",
+          "sourceData": "<dshHome>/profiles/web/cordis.patch.yml",
+          "status": "仅迁移模型声明，不复制凭据；C 阶段迁入 globalStorageUri。"
+        }
+      ]
+    },
+    "packages": [
+      {
+        "name": "@deepseek-ai/dsh",
+        "manifest": "apps/cli/package.json"
+      },
+      {
+        "name": "@deepseek-ai/dsh-sdk-client",
+        "manifest": "packages/sdk/client/package.json"
+      },
+      {
+        "name": "@deepseek-ai/dsh-base",
+        "manifest": "packages/bundle/base/package.json"
+      },
+      {
+        "name": "@deepseek-ai/dsh-sdk-app",
+        "manifest": "packages/bundle/sdk-app/package.json"
+      },
+      {
+        "name": "@deepseek-ai/dsh-api-session-controller",
+        "manifest": "packages/api/session-controller/package.json"
+      },
+      {
+        "name": "@deepseek-ai/node-addon-system",
+        "manifest": "native/system/packages/entry/package.json",
+        "version": "0.1.2"
+      },
+      {
+        "name": "@deepseek-ai/node-addon-system-linux-x64",
+        "manifest": "native/system/packages/linux-x64/package.json",
+        "version": "0.1.2",
+        "platformPackage": true,
+        "prebuilds": "native/system/packages/linux-x64/prebuilds.json",
+        "status": "版本与载荷路径已固定；实际原生文件、执行权限、glibc 行为和 VSIX 保留权限由 A3/A4/B2 验证。"
+      }
+    ],
+    "productionClosure": {
+      "roots": [
+        "@deepseek-ai/dsh",
+        "@deepseek-ai/dsh-sdk-client",
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-sdk-app",
+        "@deepseek-ai/dsh-app-boot",
+        "@deepseek-ai/dsh-official-bundles",
+        "@deepseek-ai/dsh-home-paths",
+        "@deepseek-ai/dsh-http-proxy",
+        "@deepseek-ai/dsh-launch-environment",
+        "@deepseek-ai/dsh-cmdline",
+        "@deepseek-ai/dsh-plugin-manager",
+        "@deepseek-ai/dsh-atomic-write",
+        "@deepseek-ai/node-addon-system"
+      ],
+      "compiledEntryPackage": "@deepseek-ai/dsh",
+      "stagingDirectory": ".runtime-build/dsh",
+      "manifest": "build/dsh-production-closure.json",
+      "dependencySections": [
+        "dependencies",
+        "peerDependencies",
+        "optionalDependencies"
+      ],
+      "command": "npm run runtime:stage && npm run runtime:closure -- --require-built",
+      "strictCommand": "npm run runtime:stage && npm run runtime:closure -- --require-built",
+      "policy": "从编译 CLI 实际导入的启动包、SDK 客户端和 sdk profile bundles 出发，遍历生产/必需 peer 依赖；profile 中声明的插件必须纳入。CLI 仅供其他模式或私有实验 bundle 的生产依赖不属于嵌入式 SDK 交付范围。",
+      "exclusions": [
+        {
+          "pattern": "devDependencies / *.spec.ts / tests / docs / .agents / .git",
+          "reason": "构建和审查输入，不进入生产包；包文件以 pnpm pack 的发布清单为准。"
+        },
+        {
+          "pattern": "node_modules/@deepseek-ai/dsh-host-* / dsh-web-frontend / 其他 OS 或 CPU 可选包",
+          "reason": "独立子进程只使用 stdio SDK，不交付 Web 服务、Electron Desktop 或其他平台原生组件。"
+        },
+        {
+          "pattern": ".runtime-build / build / .env / profiles / sessions / storages",
+          "reason": "构建缓存、源码快照、凭据及用户数据，不属于发布运行时。"
+        }
+      ],
+      "packaging": "DSH 和 vendor 使用各自 pnpm pack，转换 workspace 版本并遵守各包 files/许可证规则；B1 构建后执行，不复制开发态嵌套 node_modules。",
+      "artifactInventory": "--require-built 扫描 .runtime-build/dsh 的实际发布文件，记录相对路径、字节数、SHA-256 和执行权限；每包 pnpm pack 文件规则与磁盘集合必须一致。暂存树不是压缩归档，packedBytes 明确为 null；VSIX 压缩体积由 A4/D1 测量。",
+      "nativeProbeCommand": "npm run runtime:native && npm run runtime:install-check && node scripts/runtime-native-suite.cjs"
+    },
+    "snapshot": {
+      "path": ".runtime-build/dsh-source-snapshot.tar.gz",
+      "sha256File": ".runtime-build/dsh-source-snapshot.tar.gz.sha256",
+      "contents": "Git 跟踪文件及未忽略的声明/构建配置；排除 .git、依赖、构建产物、.env、凭据、测试生成物、缓存和垃圾文件。",
+      "manifest": "build/runtime-baseline.json",
+      "requirement": "快照来源可包含未提交修改，必须同时核对提交与 snapshot.archiveSha256；commit 单独不能代表此工作区。"
+    }
+  }
+}

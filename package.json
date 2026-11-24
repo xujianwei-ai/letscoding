@@ -1,0 +1,214 @@
+{
+  "name": "letscoding",
+  "displayName": "LetsCoding",
+  "description": "A VS Code coding agent with graceful stop, checkpoint rollback, and warm session resume.",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "publisher": "xujianwei",
+  "type": "module",
+  "engines": {
+    "vscode": "^1.105.0",
+    "node": ">=24.9.0"
+  },
+  "main": "./out/extension.js",
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "index:generate": "node scripts/feature-index.cjs",
+    "index:check": "node scripts/feature-index.cjs --check",
+    "test:index": "npm run index:check && node scripts/feature-index-suite.cjs",
+    "runtime:baseline": "node scripts/runtime-baseline.cjs",
+    "runtime:node": "node scripts/prepare-node.cjs",
+    "runtime:closure": "node scripts/runtime-closure.cjs",
+    "runtime:stage": "node scripts/runtime-stage.cjs",
+    "runtime:native": "node scripts/runtime-native.cjs",
+    "runtime:install-check": "node scripts/runtime-native.cjs --install-check",
+    "runtime:sdk": "node scripts/runtime-sdk-suite.cjs",
+    "vsix:package": "node scripts/vsix-package.cjs",
+    "vsix:accept": "node scripts/vsix-accept.cjs",
+    "test:runtime-baseline": "node scripts/runtime-baseline-suite.cjs && node scripts/runtime-closure-suite.cjs && node scripts/runtime-launch-options-suite.cjs",
+    "test:quick": "npm run compile && npm run test:index && node scripts/session-runtime-suite.cjs && node scripts/webview-suite.cjs && node scripts/checkpoint-baseline-suite.cjs && node --input-type=module -e \"const {run}=await import('./scripts/checkpoint-suite.cjs'); await run()\" && node scripts/inline-diff-suite.cjs && node scripts/session-delete-async-suite.cjs && node scripts/session-export-suite.cjs && node scripts/runtime-launch-options-suite.cjs && node scripts/runtime-licenses-suite.cjs && node scripts/vsix-security-suite.cjs && npm run runtime:baseline -- --check && npm run runtime:closure -- --check && node scripts/runtime-baseline-suite.cjs",
+    "test:sdk": "node --import tsx/esm scripts/sdk-probe.ts",
+    "test:cancel": "node --import tsx/esm scripts/cancel-probe.ts",
+    "test:vscode": "npm run compile && node --check media/webview.js && node --check scripts/vscode-suite.cjs && node scripts/vscode-integration.cjs",
+    "test:approval": "npm run compile && node --check scripts/approval-suite.cjs && VSCODE_AGENT_SUITE=approval-suite.cjs node scripts/vscode-integration.cjs",
+    "test:real-project": "npm run compile && node --check scripts/real-project-suite.cjs && VSCODE_AGENT_SUITE=real-project-suite.cjs node scripts/vscode-integration.cjs",
+    "test:webview": "npm run compile && node --check scripts/webview-suite.cjs && node scripts/webview-suite.cjs",
+    "test:inline-diff": "npm run compile && node --check scripts/inline-diff-suite.cjs && node scripts/inline-diff-suite.cjs",
+    "test:checkpoint": "npm run compile && VSCODE_AGENT_SUITE=checkpoint-suite.cjs node scripts/vscode-integration.cjs",
+    "test:checkpoint-baseline": "npm run compile && node --check scripts/checkpoint-baseline-suite.cjs && node scripts/checkpoint-baseline-suite.cjs",
+    "test:workbench-e2e": "npm run compile && node --check scripts/workbench-e2e-suite.cjs && VSCODE_AGENT_SUITE=workbench-e2e-suite.cjs VSCODE_AGENT_WORKSPACE=../.vscode-agent-dev/workbench-e2e-workspace VSCODE_AGENT_USER_DATA=../.vscode-agent-dev/test-user-workbench-e2e node scripts/vscode-integration.cjs"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh": "file:../dsh-learning/deepseek-harness/apps/cli",
+    "@deepseek-ai/dsh-sdk-client": "file:../dsh-learning/deepseek-harness/packages/sdk/client",
+    "argparse": "^2.0.1",
+    "diff": "^9.0.0",
+    "js-yaml": "^4.3.2"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.2",
+    "@types/js-yaml": "^4.0.9",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^24.9.0",
+    "@types/vscode": "^1.105.0",
+    "@vscode/test-electron": "^3.1.0",
+    "linkedom": "^0.18.15",
+    "mocha": "^12.0.3",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "未受信任的工作区只提供 Agent 界面；启动 DSH、读取项目或执行任何修改前，必须先显式信任工作区。"
+    }
+  },
+  "activationEvents": [
+    "*",
+    "onStartupFinished",
+    "onView:privateCodingAgent.chat"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "privateCodingAgent",
+          "title": "Coding Agent",
+          "icon": "media/agent.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "privateCodingAgent.newSession",
+        "title": "New Agent Session",
+        "icon": "$(add)"
+      },
+      {
+        "command": "privateCodingAgent.stop",
+        "title": "Stop Agent Host",
+        "icon": "$(debug-stop)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "privateCodingAgent.newSession",
+          "when": "view == privateCodingAgent.chat",
+          "group": "navigation"
+        },
+        {
+          "command": "privateCodingAgent.stop",
+          "when": "view == privateCodingAgent.chat",
+          "group": "navigation"
+        }
+      ]
+    },
+    "views": {
+      "privateCodingAgent": [
+        {
+          "type": "webview",
+          "id": "privateCodingAgent.chat",
+          "name": "Agent"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Private Coding Agent",
+      "properties": {
+        "privateCodingAgent.runtimeMode": {
+          "type": "string",
+          "enum": [
+            "bundled",
+            "source"
+          ],
+          "enumDescriptions": [
+            "使用扩展内置的 Node 24.9.0 和 DSH；适用于 Linux x64",
+            "开发者显式使用 dshRepository 指定且已构建的 DSH；需要外部普通 Node >=24.9"
+          ],
+          "default": "bundled",
+          "description": "DSH 运行时来源。内置组件缺失时明确报错，不会自动回退到源码。"
+        },
+        "privateCodingAgent.dshRepository": {
+          "type": "string",
+          "default": "",
+          "description": "Only used when runtimeMode is source. Absolute or workspace-resolvable built deepseek-harness checkout."
+        },
+        "privateCodingAgent.dshHome": {
+          "type": "string",
+          "default": "",
+          "description": "DSH 数据目录。默认依次使用 DSH_HOME、~/.dsh，与 DSH 共享已有账户登录和会话；API Key 必须在 DSH 中私密配置，不能写入 VS Code 设置。"
+        },
+        "privateCodingAgent.networkMode": {
+          "type": "string",
+          "enum": [
+            "direct",
+            "system",
+            "proxy"
+          ],
+          "enumDescriptions": [
+            "模型请求不经过代理；不会继承 VS Code 的代理环境",
+            "继承 VS Code 进程的 HTTP_PROXY、HTTPS_PROXY、ALL_PROXY 和 NO_PROXY",
+            "使用下方的模型代理地址"
+          ],
+          "default": "direct",
+          "description": "DSH Host 的模型网络路径。修改后在空闲状态下发送下一条消息时生效。"
+        },
+        "privateCodingAgent.proxyUrl": {
+          "type": "string",
+          "default": "",
+          "description": "当网络模式为 proxy 时使用的 HTTP(S) 代理，例如 http://127.0.0.1:7890。代理认证信息不会写入日志。"
+        },
+        "privateCodingAgent.provider": {
+          "type": "string",
+          "default": "deepseek-account",
+          "description": "DSH model provider route."
+        },
+        "privateCodingAgent.model": {
+          "type": "string",
+          "default": "deepseek-flash",
+          "description": "Model ID on the selected DSH provider route."
+        },
+        "privateCodingAgent.chatFontSize": {
+          "type": "number",
+          "default": 13.5,
+          "minimum": 10,
+          "maximum": 24,
+          "description": "对话区域正文字号（px）。Markdown 渲染后的基础字号，标题会按比例放大。"
+        },
+        "privateCodingAgent.chatLineHeight": {
+          "type": "number",
+          "default": 1.7,
+          "minimum": 1.2,
+          "maximum": 2.5,
+          "description": "对话区域行高。影响 Markdown 渲染后的段落间距。"
+        },
+        "privateCodingAgent.chatFontFamily": {
+          "type": "string",
+          "default": "",
+          "description": "对话区域自定义字体（CSS font-family 值，如 'PingFang SC, sans-serif'）。留空则使用 VS Code 默认字体。"
+        },
+        "privateCodingAgent.codeFontSize": {
+          "type": "number",
+          "default": 12.5,
+          "minimum": 10,
+          "maximum": 20,
+          "description": "代码块字号（px）。影响行内代码和代码块。"
+        },
+        "privateCodingAgent.reasoningFontSize": {
+          "type": "number",
+          "default": 12,
+          "minimum": 10,
+          "maximum": 18,
+          "description": "思考过程卡片字号（px）。"
+        }
+      }
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xujianwei-ai/letscoding.git"
+  }
+}

@@ -1,0 +1,1946 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "name": "LetsCoding",
+    "root": ".",
+    "entry": "out/extension.js",
+    "description": "VS Code Webview + Extension Host + 独立 DSH Node Host 的本地编码 Agent。"
+  },
+  "architecture": [
+    {
+      "id": "webview",
+      "owner": "media/webview.js + src/extension.ts:html",
+      "responsibility": "展示、编辑、用户交互与临时 UI 状态；不直接读写工作区或 DSH。",
+      "boundary": "仅通过 postMessage 与扩展通信；刷新会丢失未持久化的视图状态。"
+    },
+    {
+      "id": "controller",
+      "owner": "src/extension.ts + src/agentController.ts",
+      "responsibility": "验证 Webview 消息、选择目标 Session、协调读写 Host、保存工作区选择。",
+      "boundary": "Webview 关闭不销毁运行中的任务；后台 Session 的事件不能直接覆盖当前视图。"
+    },
+    {
+      "id": "session-runtime",
+      "owner": "src/agent.ts + src/checkpoints.ts + src/inlineDiff.ts",
+      "responsibility": "一个持久 Session 的写 Host、轮次事件、工具、文件快照和编辑器效果。",
+      "boundary": "一个活跃写 Host 只能属于一个 Session；跨 Session 操作必须携带目标 sessionId。"
+    },
+    {
+      "id": "dsh",
+      "owner": "src/runtime.ts + ../dsh-learning/deepseek-harness",
+      "responsibility": "普通 Node 进程、SDK JSON-RPC、模型与工具、持久化会话。",
+      "boundary": "扩展不拥有模型或工具实现；外部接口和本地补丁见 integrations，不把密钥放入扩展配置。"
+    }
+  ],
+  "integrations": [
+    {
+      "id": "sdk-client",
+      "path": "../dsh-learning/deepseek-harness/packages/sdk/client/src/api.ts",
+      "symbols": [
+        "DeepSeekHarness",
+        "HarnessSession",
+        "DeepSeekHarness.start",
+        "DeepSeekHarness.resumeSession",
+        "DeepSeekHarness.listModels",
+        "DeepSeekHarness.listSessions",
+        "DeepSeekHarness.sessionHistory",
+        "DeepSeekHarness.discoverModels",
+        "DeepSeekHarness.testModel",
+        "DeepSeekHarness.saveProvider",
+        "DeepSeekHarness.deleteProvider",
+        "DeepSeekHarness.providerConfig",
+        "HarnessSession.run",
+        "HarnessSession.rewind"
+      ],
+      "usage": "Host 生命周期、目录/历史读取、模型路由、临时模型发现与测试、私密凭据保存、继续会话及原地 rewind。",
+      "owner": "DSH；修改后运行扩展真实集成测试，不假设 npm 包行为等于本地源码。"
+    },
+    {
+      "id": "sdk-transport",
+      "path": "../dsh-learning/deepseek-harness/packages/sdk/client/src/launch.ts",
+      "symbols": [
+        "resolveDshLaunch"
+      ],
+      "usage": "公开 nodePath 指定普通 Node 子进程，dshBin 选择已编译 CLI，保留 stdio JSON-RPC、超时、审批和关闭。",
+      "owner": "DSH；传输、进程或超时修改需同时验证 Electron 启动和真实模型调用。"
+    },
+    {
+      "id": "session-controller",
+      "path": "../dsh-learning/deepseek-harness/packages/api/session-controller/src/index.ts",
+      "symbols": [
+        "SessionController"
+      ],
+      "usage": "SDK 精简 profile 中历史、目录与 rewind 所需的 API。",
+      "owner": "DSH；本地补丁，不等同于上游完整 Web profile。"
+    },
+    {
+      "id": "sdk-profile",
+      "path": "../dsh-learning/deepseek-harness/apps/cli/src/sdk-source.cordis.patch.yml",
+      "symbols": [
+        "session-controller"
+      ],
+      "usage": "源码启动时注入扩展所需的 SDK profile 插件。",
+      "owner": "DSH；新增插件须检查包依赖、profile 装载顺序与 FiberState 源码启动兼容性。"
+    },
+    {
+      "id": "session-storage",
+      "path": "../dsh-learning/deepseek-harness/packages/session/session-persistence-jsonl/src/format.ts",
+      "symbols": [
+        "encodeSegment",
+        "projectKey"
+      ],
+      "usage": "会话 JSONL 目录、项目键和删除范围；扩展必须复用相同路径编码。",
+      "owner": "DSH 持久化格式；禁止未经迁移与兼容审查改变已发布数据格式。"
+    },
+    {
+      "id": "model-providers",
+      "path": "../dsh-learning/deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts",
+      "symbols": [
+        "PiAiAdapter"
+      ],
+      "usage": "Kimi 等 pi-ai 模型请求、流式输出、重试错误映射。",
+      "owner": "DSH；模型连接问题先核对实际 Host 代理与请求头，不归因于 Webview。"
+    }
+  ],
+  "tests": [
+    {
+      "id": "runtime-launch",
+      "command": "node scripts/runtime-launch-options-suite.cjs && VSCODE_AGENT_SUITE=runtime-launch-suite.cjs node scripts/vscode-integration.cjs",
+      "path": "scripts/runtime-launch-suite.cjs",
+      "level": "integration",
+      "requiresModel": false,
+      "requiresVSCode": true,
+      "covers": "默认 bundled、公开 SDK nodePath、缺失/损坏拒绝、无 source/tsx 回退、私有补丁、Electron Host 启动与关闭；无凭据模型目录。"
+    },
+    {
+      "id": "quick-session",
+      "command": "node scripts/session-runtime-suite.cjs",
+      "path": "scripts/session-runtime-suite.cjs",
+      "level": "quick",
+      "requiresModel": false,
+      "requiresVSCode": false,
+      "covers": "多 Session 选择、后台运行、重发目标、读 Host 缓存与网络 Host 边界；未受信任工作区不创建 DSH Host。"
+    },
+    {
+      "id": "quick-webview",
+      "command": "node scripts/webview-suite.cjs",
+      "path": "scripts/webview-suite.cjs",
+      "level": "quick",
+      "requiresModel": false,
+      "requiresVSCode": false,
+      "covers": "Webview 交互、流式滚动、吸顶编辑、模型选择、会话菜单、工具/测试/引用；未受信任工作区的单一引导、控件禁用、信任恢复与对话保留。"
+    },
+    {
+      "id": "quick-checkpoint",
+      "command": "node scripts/checkpoint-baseline-suite.cjs && node --input-type=module -e \"const {run}=await import('./scripts/checkpoint-suite.cjs'); await run()\"",
+      "path": "scripts/checkpoint-suite.cjs",
+      "level": "quick",
+      "requiresModel": false,
+      "requiresVSCode": false,
+      "covers": "快照、恢复范围、手工修改保护、undo、旧格式与验证解析。"
+    },
+    {
+      "id": "quick-diff",
+      "command": "node scripts/inline-diff-suite.cjs",
+      "path": "scripts/inline-diff-suite.cjs",
+      "level": "quick",
+      "requiresModel": false,
+      "requiresVSCode": false,
+      "covers": "编辑器增删改装饰和清理。"
+    },
+    {
+      "id": "quick-delete",
+      "command": "node scripts/session-delete-async-suite.cjs",
+      "path": "scripts/session-delete-async-suite.cjs",
+      "level": "quick",
+      "requiresModel": false,
+      "requiresVSCode": false,
+      "covers": "删除目录、投影缓存与失败后的选择恢复。"
+    },
+    {
+      "id": "quick-export",
+      "command": "node scripts/session-export-suite.cjs",
+      "path": "scripts/session-export-suite.cjs",
+      "level": "quick",
+      "requiresModel": false,
+      "requiresVSCode": false,
+      "covers": "Markdown 导出内容排序、思考过程折叠、code fence 转义、文件名清洗与长度裁剪。"
+    },
+    {
+      "id": "integration",
+      "command": "node scripts/vscode-integration.cjs vscode-suite.cjs",
+      "path": "scripts/vscode-suite.cjs",
+      "level": "integration",
+      "requiresModel": true,
+      "requiresVSCode": true,
+      "covers": "真实 Electron/DSH、路由切换、会话/回滚/删除、上下文、权限、冲突和检查点；直接驱动 Controller，不经过真实 Webview 消息桥。"
+    },
+    {
+      "id": "approval",
+      "command": "node scripts/vscode-integration.cjs approval-suite.cjs",
+      "path": "scripts/approval-suite.cjs",
+      "level": "integration",
+      "requiresModel": true,
+      "requiresVSCode": true,
+      "covers": "真实只读沙箱中的单次允许和拒绝；替换客户端请求处理，不覆盖 VS Code 模态框。"
+    },
+    {
+      "id": "workbench-e2e",
+      "command": "node scripts/vscode-integration.cjs workbench-e2e-suite.cjs",
+      "path": "scripts/workbench-e2e-suite.cjs",
+      "level": "e2e",
+      "requiresModel": true,
+      "requiresVSCode": true,
+      "covers": "真实模型/终端 + linkedom 的修复、失败定位、重跑和 Diff；仍绕过真实 Webview 消息桥。"
+    },
+    {
+      "id": "real-project",
+      "command": "node scripts/vscode-integration.cjs real-project-suite.cjs",
+      "path": "scripts/real-project-suite.cjs",
+      "level": "e2e",
+      "requiresModel": true,
+      "requiresVSCode": true,
+      "covers": "真实 JS 项目修复、测试证据、Git diff 和恢复会话。"
+    },
+    {
+      "id": "checkpoint-integration",
+      "command": "node scripts/vscode-integration.cjs checkpoint-suite.cjs",
+      "path": "scripts/checkpoint-suite.cjs",
+      "level": "integration",
+      "requiresModel": false,
+      "requiresVSCode": true,
+      "covers": "在真实 VS Code 工作区执行检查点数据测试。"
+    },
+    {
+      "id": "diff-integration",
+      "command": "npm run compile && node scripts/diff-integration.cjs",
+      "path": "scripts/diff-integration.cjs",
+      "level": "integration",
+      "requiresModel": false,
+      "requiresVSCode": true,
+      "covers": "真实 Git 扩展和 HEAD Diff；使用 stage1-fixture 及共享测试配置。"
+    },
+    {
+      "id": "sdk-probe",
+      "command": "node --import tsx/esm scripts/sdk-probe.ts",
+      "path": "scripts/sdk-probe.ts",
+      "level": "probe",
+      "requiresModel": true,
+      "requiresVSCode": false,
+      "covers": "最小模型连接和事件观察；使用开发 DSH home，会产生新会话。"
+    },
+    {
+      "id": "electron-probe",
+      "command": "node scripts/electron-probe.cjs",
+      "path": "scripts/electron-probe.cjs",
+      "level": "probe",
+      "requiresModel": false,
+      "requiresVSCode": true,
+      "covers": "仅连接 9333 CDP 并读取 Electron 信息；未使用的 DSH 表达式不会执行，不能作为 Host 验证。"
+    },
+    {
+      "id": "question-probe",
+      "command": "node --import tsx/esm scripts/question-fixture.mts",
+      "path": "scripts/question-fixture.mts",
+      "level": "probe",
+      "requiresModel": true,
+      "requiresVSCode": false,
+      "covers": "直接 SDK 提问场景与预设答案；观察取消/回答日志，未断言内容，不覆盖 Webview/Broker。"
+    },
+    {
+      "id": "node-probe",
+      "command": "node --import tsx/esm scripts/node-runtime-probe.ts",
+      "path": "scripts/node-runtime-probe.ts",
+      "level": "probe",
+      "requiresModel": false,
+      "requiresVSCode": false,
+      "covers": "普通 Node 版本、Electron 排除与 SQLite 可用性。"
+    },
+    {
+      "id": "index",
+      "command": "node scripts/feature-index-suite.cjs",
+      "path": "scripts/feature-index-suite.cjs",
+      "level": "quick",
+      "requiresModel": false,
+      "requiresVSCode": false,
+      "covers": "索引数据、协议清单、生成文档同步与损坏检测。"
+    },
+    {
+      "id": "vsix",
+      "command": "npm run vsix:package && npm run vsix:accept # scripts/vsix-accept.cjs 驱动 scripts/vsix-accept-suite.cjs；真实模型另用 DSH_TEST_CREDENTIAL_SOURCE=<授权 DSH Home> npm run vsix:accept -- --with-model",
+      "path": "scripts/vsix-accept-suite.cjs",
+      "level": "integration",
+      "requiresModel": false,
+      "requiresVSCode": true,
+      "covers": "真实 Linux x64 VSIX 文件、依赖、许可证、执行权限、VS Code 隔离安装、无外部 Node 启动、模型目录、错误分类、只读安装与关闭；校验 limited 未受信任工作区声明。测试器强制 --disable-workspace-trust，不能声称实测受限模式；未受信任时不创建 DSH Host 由 quick-session 覆盖，活动栏显示需独立桌面窗口人工验收。--with-model 要求显式 DSH_TEST_CREDENTIAL_SOURCE，仅复制 DeepSeek 账户白名单授权；另验收真实流式对话、文件编辑、原生 Diff、审批、rewind/undo、Session 恢复和删除，扫描归档/安装树/隔离日志的授权值；离线和真实模型证据分别写入 build/vsix-acceptance-offline.json 与 build/vsix-acceptance-model.json。"
+    },
+    {
+      "id": "runtime-baseline",
+      "command": "node scripts/runtime-baseline-suite.cjs && node scripts/runtime-closure-suite.cjs && node scripts/runtime-licenses-suite.cjs",
+      "path": "scripts/runtime-baseline-suite.cjs",
+      "level": "quick",
+      "requiresModel": false,
+      "requiresVSCode": false,
+      "covers": "Node/DSH 精确版本、恢复快照、SDK 生产依赖闭包、原生载荷、发布暂存区和路径拒绝；VSIX 临时副本许可证补齐、精确版本与固定来源哈希；完整构建与 VSIX 安装分别由 B1/D 阶段验证。"
+    },
+    {
+      "id": "runtime-native",
+      "command": "npm run runtime:native && npm run runtime:install-check && node scripts/runtime-native-suite.cjs --with-install",
+      "path": "scripts/runtime-native-suite.cjs",
+      "level": "probe",
+      "requiresModel": false,
+      "requiresVSCode": false,
+      "covers": "固定 Node、SQLite FTS5、glibc flock 和 Landlock 真实行为；原生 tarball 离线安装、权限、哈希与故障拒绝；不覆盖真实 VSIX，要求本机 Landlock 可强制。"
+    },
+    {
+      "id": "runtime-sdk",
+      "command": "node scripts/runtime-sdk-suite.cjs --controlled-mock",
+      "path": "scripts/runtime-sdk-suite.cjs",
+      "level": "probe",
+      "requiresModel": false,
+      "requiresVSCode": false,
+      "covers": "固定 Node 启动生产 DSH SDK profile、离线模型目录与 Session 隔离、结构化提问取消/迟到答案保护、缺少 SessionController 的明确启动失败；本地 Messages/SSE 受控服务驱动四个真实 Agent 轮次、历史、fork、rewind、原生提问和重启恢复。辅助模块按基线源码路径与 SHA-256 固定，不进入生产闭包；真实 DeepSeek 账户另用 --controlled、显式 DSH_TEST_CREDENTIAL_SOURCE 与 deepseek-account 路由，仅白名单复制账户授权至 0600 隔离 Home 并在测试后清理；也支持独立 DSH_TEST_API_KEY。"
+    },
+    {
+      "id": "cancel-integration",
+      "command": "VSCODE_AGENT_SUITE=cancel-integration-suite.cjs node scripts/vscode-integration.cjs",
+      "path": "scripts/cancel-integration-suite.cjs",
+      "level": "integration",
+      "requiresModel": true,
+      "requiresVSCode": true,
+      "covers": "真实 Electron/DSH 优雅停止：session/cancel 停止延迟、Host 保活无冷启动、被取消用户消息保留、turn/end reason=aborted 落盘、busy 正确释放。"
+    },
+    {
+      "id": "cancel-probe",
+      "command": "node --import tsx/esm scripts/cancel-probe.ts",
+      "path": "scripts/cancel-probe.ts",
+      "level": "probe",
+      "requiresModel": true,
+      "requiresVSCode": false,
+      "covers": "最小优雅停止探针（真实模型，不经 VS Code）：cancel 接受延迟、中断 turn 落盘、用户消息不 rewind、后续消息无冷启动。使用开发 DSH home，会产生新会话。"
+    }
+  ],
+  "features": [
+    {
+      "id": "extension-shell",
+      "domain": "接入与视图",
+      "name": "扩展激活与 Webview 容器",
+      "risk": "medium",
+      "summary": "注册侧栏、命令、输出通道、设置和 Webview；controller 在视图销毁后继续存在。",
+      "entry": {
+        "path": "src/extension.ts",
+        "symbols": [
+          "activate",
+          "html",
+          "currentModelRoute"
+        ]
+      },
+      "modules": [
+        {
+          "path": "package.json",
+          "symbols": [
+            "main",
+            "contributes",
+            "capabilities",
+            "untrustedWorkspaces"
+          ]
+        },
+        {
+          "path": "src/agentController.ts",
+          "symbols": [
+            "AgentController.requireTrust",
+            "AgentController.restoreSelection"
+          ]
+        },
+        {
+          "path": "media/webview.js",
+          "symbols": [
+            "applyTrustState"
+          ]
+        },
+        {
+          "path": "media/agent.svg",
+          "symbols": []
+        }
+      ],
+      "dom": [
+        {
+          "selector": "#topbar, #session-picker, #session-select, #session-menu",
+          "function": "renderSessions"
+        },
+        {
+          "selector": "#conversation-shell, #conversation, #log, #status",
+          "function": "append"
+        },
+        {
+          "selector": "#workspace-trust, .workspace-trust-copy, #trust-workspace",
+          "function": "applyTrustState"
+        },
+        {
+          "selector": "#bottom, #composer, #input, #input-highlight",
+          "function": "updateInputHighlight"
+        },
+        {
+          "selector": "#composer-toolbar, #permissionMode, #model, #send",
+          "function": "busy"
+        }
+      ],
+      "outbound": [
+        "ready",
+        "manageTrust",
+        "openLocation"
+      ],
+      "inbound": [
+        "conflict",
+        "workspaceTrust"
+      ],
+      "flow": [
+        "VS Code activate → AgentController → registerWebviewViewProvider → html → media/webview.js"
+      ],
+      "invariants": [
+        "CSP 只允许受控脚本/样式/图片；动态内容使用 DOM API。",
+        "工作区限制为单项目；扩展 Host 不是运行模型的普通 Node。",
+        "未受信任工作区只注册界面，不启动 DSH、索引项目、读取目录或恢复会话；信任卡片只调用 VS Code 官方信任对话框，授权后自动初始化目录和会话。",
+        "视图销毁不得等同于停止 Agent。"
+      ],
+      "tests": [
+        "quick-session",
+        "quick-webview",
+        "vsix",
+        "integration"
+      ],
+      "dependsOn": [
+        "session-lifecycle"
+      ],
+      "dsh": []
+    },
+    {
+      "id": "session-lifecycle",
+      "domain": "会话",
+      "name": "多 Session 生命周期与选择",
+      "risk": "high",
+      "summary": "创建、切换、后台运行、停止和恢复独立 Session；保存当前工作区选择。",
+      "entry": {
+        "path": "src/agentController.ts",
+        "symbols": [
+          "AgentController",
+          "AgentController.prepareRun",
+          "AgentController.run",
+          "AgentController.selectSession",
+          "AgentController.restoreSelection",
+          "AgentController.stop",
+          "AgentController.resume"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/agent.ts",
+          "symbols": [
+            "SessionRuntime",
+            "SessionRuntime.start",
+            "SessionRuntime.stop",
+            "SessionRuntime.closeHost",
+            "SessionRuntime.prepareRestore"
+          ]
+        }
+      ],
+      "outbound": [
+        "ready",
+        "sessionSelect",
+        "new",
+        "stop",
+        "resume"
+      ],
+      "inbound": [
+        "busy",
+        "sessionSelected",
+        "cleared"
+      ],
+      "flow": [
+        "Webview 选择/发送 → AgentController 定位 runtime → SessionRuntime Host → DSH resume/run → 按 sessionId 投影当前视图"
+      ],
+      "storage": [
+        "workspaceState.currentSession:<workspace>",
+        "liveViews: 仅内存的事件投影",
+        "runtimes: 每 Session 一个写 Host",
+        "turnSerial: 单调递增的 turn 标识，stop 后防止迟到的 start finally 覆盖新 turn 的 busy"
+      ],
+      "invariants": [
+        "选择状态和 runtime.id 不得分离；新任务采用 prepareRun 时的目标。",
+        "后台 Session 不重置当前 busy、视图或选择。",
+        "切换/重载不能同时持有同一 Session 的活跃写锁。",
+        "关闭 Webview 不结束后台任务。",
+        "stop() 通过 session/cancel RPC 优雅中断活跃 turn，Host 进程保持热备、部分输出以 interrupted 落盘；仅当 Host 已冷或 cancel RPC 失败时才 teardown 并同步释放 busy、递增 turnSerial。",
+        "被 turnSerial 淘汰的旧 start() 的 catch/finally 不得触碰共享状态（harness、busy、stopped），只能清理自己持有的局部 harness 引用。"
+      ],
+      "tests": [
+        "quick-session",
+        "integration",
+        "cancel-integration",
+        "cancel-probe"
+      ],
+      "dependsOn": [
+        "host-launch",
+        "event-projection"
+      ],
+      "dsh": [
+        "sdk-client"
+      ]
+    },
+    {
+      "id": "session-catalog",
+      "domain": "会话",
+      "name": "历史目录、缓存与删除",
+      "risk": "high",
+      "summary": "读取当前工作区的历史会话、合并较新投影、异步删除日志和检查点；支持本地重命名覆盖。",
+      "entry": {
+        "path": "src/sessionCatalog.ts",
+        "symbols": [
+          "SessionCatalog",
+          "SessionCatalog.list",
+          "SessionCatalog.invalidate",
+          "SessionCatalog.rename"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/agentController.ts",
+          "symbols": [
+            "AgentController.readOnly",
+            "AgentController.deleteSession",
+            "AgentController.history"
+          ]
+        },
+        {
+          "path": "src/agent.ts",
+          "symbols": [
+            "sessionPathSegment",
+            "sessionProjectKey"
+          ]
+        },
+        {
+          "path": "media/webview.js",
+          "symbols": [
+            "renderSessions",
+            "selectSession"
+          ]
+        }
+      ],
+      "outbound": [
+        "sessionList",
+        "sessionSelect",
+        "sessionDelete"
+      ],
+      "inbound": [
+        "sessionList",
+        "sessionListStatus",
+        "sessionDeleted",
+        "sessionSelected"
+      ],
+      "flow": [
+        "只读 Host.listSessions → SessionCatalog 合并 → Webview 目录；删除 → 标记 deletedSessions → 关闭目标 Host → 删除 JSONL/投影/检查点"
+      ],
+      "storage": [
+        "<dshHome>/sessions/<projectKey>/<sessionId>",
+        "<dshHome>/storages/session_projcache/sessions/<sessionId>.json",
+        "CheckpointStore 的共享快照引用"
+      ],
+      "invariants": [
+        "迟到的目录响应不能复活已删除项。",
+        "正在运行的目标不能删除；删除其他 Session 不影响当前选择。",
+        "只有磁盘删除成功或目标已不存在才解除删除标记。",
+        "路径段转义必须与 DSH 一致，禁止目录逃逸。"
+      ],
+      "tests": [
+        "quick-session",
+        "quick-delete",
+        "quick-webview",
+        "integration"
+      ],
+      "dependsOn": [
+        "session-lifecycle",
+        "checkpoints"
+      ],
+      "dsh": [
+        "sdk-client",
+        "session-storage"
+      ]
+    },
+    {
+      "id": "session-export",
+      "domain": "会话",
+      "name": "会话重命名与导出",
+      "risk": "medium",
+      "summary": "将会话历史导出为 Markdown 文件归档；允许用户覆盖 DSH 派生的默认标题。",
+      "entry": {
+        "path": "src/sessionExport.ts",
+        "symbols": [
+          "sessionToMarkdown",
+          "sessionExportFilename"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/extension.ts",
+          "symbols": [
+            "exportSession",
+            "renameSession"
+          ]
+        },
+        {
+          "path": "src/agentController.ts",
+          "symbols": [
+            "AgentController.renameSession"
+          ]
+        },
+        {
+          "path": "src/sessionCatalog.ts",
+          "symbols": [
+            "SessionCatalog.rename",
+            "SessionCatalog.titleOverrides"
+          ]
+        },
+        {
+          "path": "media/webview.js",
+          "symbols": [
+            "renameSession",
+            "exportSession"
+          ]
+        }
+      ],
+      "outbound": [
+        "exportSession",
+        "renameSession"
+      ],
+      "inbound": [
+        "sessionExported",
+        "sessionRenamed"
+      ],
+      "flow": [
+        "Webview 导出请求 → Extension 读取 sessionHistory → 渲染 Markdown → 用户选择保存路径 → 写入文件；重命名 → SessionCatalog 持久化覆盖到 workspaceState"
+      ],
+      "storage": [
+        "workspaceState.sessionTitle:<sessionId> 用户自定义标题",
+        "导出文件由用户选择路径，默认建议 <工作区>/<标题>-<id>.md"
+      ],
+      "invariants": [
+        "重命名不修改 DSH 磁盘日志；覆盖层仅存 workspaceState。",
+        "导出是只读操作；不触发 Host 写操作。",
+        "思考过程在导出中折叠为 <details>，默认不展开。"
+      ],
+      "tests": [
+        "quick-export",
+        "quick-webview"
+      ],
+      "dependsOn": [
+        "session-catalog"
+      ],
+      "dsh": [
+        "sdk-client"
+      ]
+    },
+    {
+      "id": "host-launch",
+      "domain": "运行时",
+      "name": "普通 Node Host 与模型网络",
+      "risk": "high",
+      "summary": "默认从 Electron 通过 SDK nodePath 启动随包 Node 24.9.0 和编译 DSH；复用 DSH_HOME/~/.dsh，显式源码模式与代理、模型声明、Host 重建相互隔离。",
+      "entry": {
+        "path": "src/runtime.ts",
+        "symbols": [
+          "harnessLaunchOptions",
+          "createHarness",
+          "defaultDshHome",
+          "hostNetworkEnvironment",
+          "sameNetworkOptions",
+          "ordinaryNode",
+          "webProviderPatch",
+          "developmentRepository"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/agent.ts",
+          "symbols": [
+            "SessionRuntime.options",
+            "SessionRuntime.start"
+          ]
+        },
+        {
+          "path": "src/agentController.ts",
+          "symbols": [
+            "AgentController.options",
+            "AgentController.readOnly"
+          ]
+        },
+        {
+          "path": "package.json",
+          "symbols": [
+            "privateCodingAgent.runtimeMode",
+            "privateCodingAgent.networkMode",
+            "privateCodingAgent.proxyUrl",
+            "privateCodingAgent.dshRepository",
+            "privateCodingAgent.dshHome"
+          ]
+        },
+        {
+          "path": "scripts/runtime-launch-options-suite.cjs",
+          "symbols": []
+        },
+        {
+          "path": "scripts/runtime-launch-suite.cjs",
+          "symbols": []
+        },
+        {
+          "path": "docs/RUNTIME_DELIVERY_PLAN.md",
+          "symbols": []
+        },
+        {
+          "path": "docs/RUNTIME_BASELINE.md",
+          "symbols": []
+        },
+        {
+          "path": "docs/RUNTIME_CLOSURE.md",
+          "symbols": []
+        }
+      ],
+      "outbound": [],
+      "inbound": [
+        "config",
+        "status",
+        "error"
+      ],
+      "flow": [
+        "VS Code settings → DSH_AGENT_HOME / 显式 dshHome / 开发 Home / DSH_HOME / ~/.dsh → harnessLaunchOptions → bundled Node/DSH 或显式已构建 source → SDK nodePath + dsh profile sdk + patches → stdio JSON-RPC"
+      ],
+      "storage": [
+        "<globalStorage>/runtime-patches/web-providers-<hash>.yml 仅模型声明，不含密钥",
+        "bundled 默认复用 DSH_HOME 或 ~/.dsh 中的 DSH 凭据和会话；界面状态和可写补丁留在 VS Code globalStorage",
+        "DSH home 中的私有凭据由 DSH 管理"
+      ],
+      "invariants": [
+        "direct 默认覆盖继承和 .env 代理变量；system 保留继承；proxy 仅支持 HTTP(S)。",
+        "测试通过 DSH_AGENT_HOME 强制隔离数据目录；显式 dshHome 优先于默认共享目录。",
+        "不记录代理认证信息或 API Key。",
+        "模型切换只改变下一次 route，不重启 Host；网络/权限变化在空闲 Host 边界重建。",
+        "发布默认 bundled；组件缺失/损坏明确失败，绝不回退 source、tsx 或 Electron。",
+        "扩展只执行已构建 CLI；source 模式必须先构建 DSH，显式使用源码补丁。"
+      ],
+      "tests": [
+        "quick-session",
+        "runtime-launch",
+        "node-probe",
+        "electron-probe",
+        "integration",
+        "sdk-probe",
+        "runtime-baseline"
+      ],
+      "dependsOn": [],
+      "dsh": [
+        "sdk-client",
+        "sdk-transport",
+        "sdk-profile",
+        "model-providers"
+      ]
+    },
+    {
+      "id": "model-routing",
+      "domain": "模型",
+      "name": "模型目录与逐轮路由",
+      "risk": "medium",
+      "summary": "展示可用模型，串行保存 provider/model，并将所选 route 应用于新轮次和历史重发。",
+      "entry": {
+        "path": "src/extension.ts",
+        "symbols": [
+          "selectModel",
+          "isCatalog",
+          "isModelRoute",
+          "migrateRemovedBuiltinRoute"
+        ]
+      },
+      "modules": [
+        {
+          "path": "media/webview.js",
+          "symbols": [
+            "renderModels",
+            "refreshModelCatalog"
+          ]
+        },
+        {
+          "path": "src/agent.ts",
+          "symbols": [
+            "SessionRuntime.run",
+            "SessionRuntime.options"
+          ]
+        },
+        {
+          "path": "src/agentController.ts",
+          "symbols": [
+            "AgentController.modelCatalog"
+          ]
+        },
+        {
+          "path": "src/modelRouting.ts",
+          "symbols": [
+            "ModelRoute",
+            "migrateRemovedBuiltinRoute"
+          ]
+        },
+        {
+          "path": "src/extension.ts",
+          "symbols": [
+            "selectModel"
+          ]
+        }
+      ],
+      "outbound": [
+        "modelCatalog",
+        "modelRoute",
+        "send",
+        "resend"
+      ],
+      "inbound": [
+        "modelCatalog",
+        "modelCatalogStatus",
+        "modelConfig",
+        "modelRoute"
+      ],
+      "flow": [
+        "独立查询 Host 使用可启动的内置路由读取目录 → 迁移旧版已移除的内置模型选择 → 校验并保存 Workspace 设置 → session.run({route}) → request/header 回显真实路由"
+      ],
+      "invariants": [
+        "目录响应不能覆盖更新的用户选择。",
+        "查询 Host 不得继承已移除的保存路由；仅迁移旧版内置模型，不擅自替换用户自定义 Provider。",
+        "无凭据导致的空目录明确提示登录或配置 DSH Home，不误报为模型声明缺失。",
+        "发送时等待模型设置写入完成；失败不得静默使用另一模型。",
+        "实际请求头而非下拉框是路由事实来源。"
+      ],
+      "tests": [
+        "quick-webview",
+        "integration"
+      ],
+      "dependsOn": [
+        "host-launch",
+        "session-lifecycle"
+      ],
+      "dsh": [
+        "sdk-client",
+        "model-providers"
+      ]
+    },
+    {
+      "id": "model-onboarding",
+      "domain": "模型",
+      "name": "模型服务引导与私密凭据",
+      "risk": "high",
+      "summary": "首启或空目录时选择厂商，使用临时草稿发现与测试模型，保存私密凭据并管理已有服务。",
+      "entry": {
+        "path": "media/webview.js",
+        "symbols": [
+          "amoOnboarding",
+          "amoOpenProvider",
+          "amoDiscover",
+          "amoSave",
+          "handleAmoMessage"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/extension.ts",
+          "symbols": [
+            "html",
+            "activate"
+          ]
+        },
+        {
+          "path": "src/agentController.ts",
+          "symbols": [
+            "AgentController.discoverModels",
+            "AgentController.testModel",
+            "AgentController.saveProvider",
+            "AgentController.deleteProvider",
+            "AgentController.providerConfig"
+          ]
+        }
+      ],
+      "dom": [
+        {
+          "selector": "#model-onboarding, #amo-provider-view, #amo-provider-grid",
+          "function": "amoRenderProviders"
+        },
+        {
+          "selector": "#amo-config-view, #amo-key, #amo-model-list, #amo-config-footer",
+          "function": "amoSave"
+        },
+        {
+          "selector": "#amo-manage-view, #model-menu",
+          "function": "amoRenderManage"
+        }
+      ],
+      "outbound": [
+        "discoverModels",
+        "testModel",
+        "saveCustomProvider",
+        "deleteCustomProvider",
+        "providerConfig"
+      ],
+      "inbound": [
+        "discoverModelsResult",
+        "testModelResult",
+        "saveCustomProviderResult",
+        "deleteCustomProviderResult",
+        "providerConfigResult"
+      ],
+      "flow": [
+        "Webview 草稿 → 扩展/Controller → DSH 临时模型发现或最小推理 → 选择模型/别名 → DSH settings + private credentials → Workspace provider/model → 刷新目录并回到会话"
+      ],
+      "storage": [
+        "<dshHome>/settings 的 llm-pi-ai.providers.<route> 只含非私密配置",
+        "<dshHome>/.credentials.yaml 由 DSH 凭据服务管理，Webview 不读取明文",
+        "Workspace privateCodingAgent.provider/model 是下一次请求的路由"
+      ],
+      "invariants": [
+        "发现与测试不创建 Session，不写持久配置；密钥仅单向进入 DSH，结果与配置读取不回显密钥。",
+        "保存后清空 Webview 密钥；编辑留空保留已有凭据。",
+        "删除不删除历史会话；删除最后一个服务重新打开引导。",
+        "目录为空不得伪造默认模型或允许发送。",
+        "未受信任工作区不启动 DSH 或发送配置请求。"
+      ],
+      "tests": [
+        "quick-webview",
+        "runtime-sdk",
+        "vsix"
+      ],
+      "dependsOn": [
+        "model-routing",
+        "host-launch"
+      ],
+      "dsh": [
+        "sdk-client",
+        "model-providers"
+      ]
+    },
+    {
+      "id": "prompt-send",
+      "domain": "对话",
+      "name": "发送、停止与上下文组装",
+      "risk": "high",
+      "summary": "从编辑器捕获上下文，安全展开 @ 文件，在一次发送边界绑定目标和模型。",
+      "entry": {
+        "path": "src/extension.ts",
+        "symbols": [
+          "activate"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/context.ts",
+          "symbols": [
+            "captureEditorContext",
+            "promptWithEditorContext",
+            "promptWithFileReferences",
+            "workspaceFiles",
+            "openEditorReference"
+          ]
+        },
+        {
+          "path": "src/agent.ts",
+          "symbols": [
+            "SessionRuntime.showUserPrompt",
+            "SessionRuntime.run"
+          ]
+        },
+        {
+          "path": "media/webview.js",
+          "symbols": [
+            "busy",
+            "updateInputHighlight",
+            "fileSearch",
+            "chooseFile",
+            "registerSubmission",
+            "retireSubmissionForElement"
+          ]
+        }
+      ],
+      "dom": [
+        {
+          "selector": "#input, #input-highlight, #file-picker, .file-option",
+          "function": "fileSearch"
+        },
+        {
+          "selector": "#context-preview",
+          "function": "openEditorReference"
+        }
+      ],
+      "outbound": [
+        "send",
+        "stop",
+        "openContext",
+        "fileList"
+      ],
+      "inbound": [
+        "user",
+        "busy",
+        "fileList",
+        "editorContext"
+      ],
+      "flow": [
+        "用户发送 → prepareRun 冻结 sessionId → 保存 route → 捕获编辑器上下文/文件引用 → SessionRuntime.run → DSH"
+      ],
+      "invariants": [
+        "只读取显式 @ 的工作区普通文本文件，最多 10 个、每个 64 KiB。",
+        "选区最多 20000 字符；无选区不发送文件内容。",
+        "展示的用户问题与注入的上下文分离，历史不得重复回显。",
+        "停止只作用于指定 Session。",
+        "停止恢复仅依据 submissions 状态机（pending → accepted/observed/failed）；未被 Host 接纳的 pending 回声退回输入框，已 accepted/observed 的消息（含历史重发）绝不回退。"
+      ],
+      "tests": [
+        "quick-webview",
+        "integration"
+      ],
+      "dependsOn": [
+        "session-lifecycle",
+        "model-routing"
+      ],
+      "dsh": [
+        "sdk-client"
+      ]
+    },
+    {
+      "id": "event-projection",
+      "domain": "对话",
+      "name": "DSH 事件到界面消息",
+      "risk": "high",
+      "summary": "将 DSH 流、工具、重试、路由与测试事件投影为 UI 消息，区分实时事件和历史回放。",
+      "entry": {
+        "path": "src/agent.ts",
+        "symbols": [
+          "SessionRuntime.onNotification",
+          "SessionRuntime.onAssistantEvent",
+          "SessionRuntime.replayHistory"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/agentController.ts",
+          "symbols": [
+            "AgentController.output",
+            "AgentController.record"
+          ]
+        },
+        {
+          "path": "media/webview.js",
+          "symbols": [
+            "append",
+            "flushStream",
+            "busy"
+          ]
+        }
+      ],
+      "outbound": [],
+      "inbound": [
+        "assistantBoundary",
+        "assistant",
+        "assistantDelta",
+        "user",
+        "messageSeq",
+        "modelRoute",
+        "status"
+      ],
+      "flow": [
+        "session.event → SessionRuntime.onNotification → AgentController.output → 当前 Session Webview 或后台 liveViews"
+      ],
+      "invariants": [
+        "delta 保留边界，不用最终文本覆盖实时流。",
+        "历史回放不产生新的测试、工具或检查点副作用。",
+        "错误对象必须可读；重试期间有可见状态。",
+        "消息所属 Session 不随前台选择变化。",
+        "检查点 seq 重绑比较必须剥离 editor-context 与 @ 引用后缀，与 replayHistory 使用同一边界规则；否则带上下文的消息 userSeq 保持 -1，重发时报『当前没有可恢复的历史会话』。",
+        "实时用户回显（start 的 showUserPrompt）必须用 pendingDisplayPrompt 纯文本，绝不用 pendingPrompt 线文本；线文本含注入的 editor-context，泄漏进历史编辑框会导致每次重发叠加一层 context。"
+      ],
+      "tests": [
+        "quick-session",
+        "quick-webview",
+        "integration"
+      ],
+      "dependsOn": [
+        "diagnostics",
+        "verification",
+        "checkpoints"
+      ],
+      "dsh": [
+        "sdk-client"
+      ]
+    },
+    {
+      "id": "conversation-reading",
+      "domain": "对话",
+      "name": "流式跟随、吸顶问题与历史编辑",
+      "risk": "medium",
+      "summary": "流式输出时跟随底部，阅读历史时暂停跟随；吸顶展示当前问题，可展开或在原位编辑重发。",
+      "entry": {
+        "path": "media/webview.js",
+        "symbols": [
+          "scrollToLatest",
+          "flushStream",
+          "updateStickyPrompt",
+          "scheduleStickyPrompt",
+          "editHistory",
+          "bindHistory",
+          "updateHistoryBinding"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/extension.ts",
+          "symbols": [
+            "html"
+          ]
+        }
+      ],
+      "dom": [
+        {
+          "selector": "#sticky-prompt, .prompt-toggle",
+          "function": "updateStickyPrompt"
+        },
+        {
+          "selector": ".user, .history-toggle, .history-edit, .history-send",
+          "function": "editHistory"
+        },
+        {
+          "selector": ".assistant",
+          "function": "flushStream"
+        }
+      ],
+      "outbound": [
+        "resend"
+      ],
+      "inbound": [
+        "assistant",
+        "assistantDelta",
+        "user",
+        "messageSeq",
+        "messageCheckpoint",
+        "busy",
+        "cleared"
+      ],
+      "flow": [
+        "scroll 事件决定 followOutput → 50ms 批量追加稳定文本节点 → 正文阶段结束或轮次完成后统一渲染 Markdown → requestAnimationFrame 更新吸顶 → 点击卡片/右上角图标分别编辑/展开"
+      ],
+      "invariants": [
+        "阅读历史时不强制下拉；回到底部恢复跟随。",
+        "流式正文按块增量渲染：已闭合代码块或空行分隔的前缀立即渲染为稳定 DOM，仅未闭合尾部追加文本节点；已渲染块绝不重建。",
+        "吸顶编辑不修改原历史卡片、不滚动原文。",
+        "正文点击进入编辑，右上角图标控制展开，二者不得混用。",
+        "运行中禁止编辑另一轮；迟到的 seq/checkpoint 必须更新已存在卡片。"
+      ],
+      "tests": [
+        "quick-webview",
+        "integration"
+      ],
+      "dependsOn": [
+        "history-resend",
+        "event-projection"
+      ],
+      "dsh": []
+    },
+    {
+      "id": "history-resend",
+      "domain": "恢复",
+      "name": "历史回滚、换模型重发与撤销",
+      "risk": "high",
+      "summary": "预览受影响文件、确认回滚、保留 Session 身份 rewind 对话，并用所选模型重新发送。",
+      "entry": {
+        "path": "src/agentController.ts",
+        "symbols": [
+          "AgentController.resendFromHistory",
+          "AgentController.previewRestore",
+          "AgentController.hasCheckpointFor",
+          "AgentController.warmupRewind",
+          "AgentController.undoRestore"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/agent.ts",
+          "symbols": [
+            "SessionRuntime.resendFromHistory",
+            "SessionRuntime.resolveRewindBoundary",
+            "SessionRuntime.ensureRewindReady",
+            "SessionRuntime.warmupRewind",
+            "SessionRuntime.hasCheckpointFor"
+          ]
+        },
+        {
+          "path": "src/checkpoints.ts",
+          "symbols": [
+            "CheckpointStore.previewRestore",
+            "CheckpointStore.validateRestore",
+            "CheckpointStore.restoreFrom",
+            "CheckpointStore.undo"
+          ]
+        },
+        {
+          "path": "src/extension.ts",
+          "symbols": [
+            "confirmRestore"
+          ]
+        },
+        {
+          "path": "media/webview.js",
+          "symbols": [
+            "editHistory"
+          ]
+        }
+      ],
+      "dom": [
+        {
+          "selector": ".history-edit, .history-model, .history-hint",
+          "function": "editHistory"
+        },
+        {
+          "selector": ".checkpoint-restored",
+          "function": "undoRestore"
+        }
+      ],
+      "outbound": [
+        "resend",
+        "undoRestore"
+      ],
+      "inbound": [
+        "status",
+        "checkpointRestored",
+        "error"
+      ],
+      "flow": [
+        "Webview resend → 并行 previewRestore + warmupRewind；hasCheckpointFor 决定确认框文案 → confirmRestore 立即弹出 → 确认后 await preview、保存脏编辑器 → resolveRewindBoundary 与 checkpoints.list 并发 → ensureRewindReady 与 warmup 去重共享 resume → rewind Session → 漂移时以实时状态重建 RestorePlan 并恢复检查点 → 重新加载历史 → run(route)"
+      ],
+      "invariants": [
+        "保留 Session ID 与后续检查点存储归属。",
+        "无检查点仍允许仅回滚对话；有检查点可选择是否恢复代码。",
+        "rewind 边界必须以持久化日志中的 user/message 事件为准；UI 传入 seq 与 Host 内存投影可能错位，不能直接传给 DSH rewind。",
+        "确认后文件哈希漂移时以实时状态重建恢复计划继续执行（用户已确认回滚语义），不因陈旧预览哈希中止整个 rewind。",
+        "只备份和写入计划影响的文件；取消不能 rewind 或发送。"
+      ],
+      "tests": [
+        "quick-session",
+        "quick-webview",
+        "quick-checkpoint",
+        "integration"
+      ],
+      "dependsOn": [
+        "checkpoints",
+        "session-lifecycle",
+        "model-routing"
+      ],
+      "dsh": [
+        "sdk-client"
+      ]
+    },
+    {
+      "id": "checkpoints",
+      "domain": "恢复",
+      "name": "检查点、快照与文件恢复",
+      "risk": "high",
+      "summary": "在每轮开始前保存工作区基线，跟踪 edit/write/Bash 变更，保护手工修改，管理撤销和共享快照生命周期。",
+      "entry": {
+        "path": "src/checkpoints.ts",
+        "symbols": [
+          "CheckpointStore",
+          "CheckpointStore.before",
+          "CheckpointStore.track",
+          "CheckpointStore.trackWorkspaceChanges",
+          "CheckpointStore.finish",
+          "CheckpointStore.deleteSession",
+          "workspacePath"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/agent.ts",
+          "symbols": [
+            "SessionRuntime.onNotification",
+            "SessionRuntime.checkpointTracking"
+          ]
+        }
+      ],
+      "outbound": [],
+      "inbound": [
+        "messageCheckpoint",
+        "messageSeq",
+        "checkpointRestored"
+      ],
+      "flow": [
+        "turn 前 before → 工具修改 track / Bash finish 比较 → finish 保存轮末哈希 → restoreFrom / undo → deleteSession 引用计数清理"
+      ],
+      "storage": [
+        "<globalStorage>/checkpoints/<encoded-workspace>/index.json",
+        "<checkpoint>.json 全量清单与 hash 引用",
+        "<checkpoint>-<path>.json 旧格式单文件快照",
+        "blobs/<sha256>.json 私有内容"
+      ],
+      "invariants": [
+        "排除 .env、密钥、Git、依赖、私有 Agent 数据与外部符号链接；单文件上限 10 MiB。大文件仅记录元数据、不复制内容；变化时提示人工审查但不阻断轮次或其他文件恢复，回滚与撤销不得误删大文件。",
+        "快照不可变；同文件多轮恢复以最老基线为准。",
+        "turnEnds 用于区分手工修改；未知变化宁可报冲突。",
+        "共享 blob/undo/继承记录仍被引用时不能删除。"
+      ],
+      "tests": [
+        "quick-checkpoint",
+        "checkpoint-integration",
+        "integration",
+        "workbench-e2e"
+      ],
+      "dependsOn": [],
+      "dsh": [
+        "session-storage"
+      ]
+    },
+    {
+      "id": "diff-review",
+      "domain": "代码审查",
+      "name": "内联 Diff、历史基线与 Git Diff",
+      "risk": "high",
+      "summary": "编辑器显示本轮增删改，删除内容通过 hover 查看；打开检查点基线或 Git HEAD 的原生 Diff。",
+      "entry": {
+        "path": "src/agent.ts",
+        "symbols": [
+          "SessionRuntime.refreshInlineDiff",
+          "SessionRuntime.openDiff",
+          "SessionRuntime.checkpointBaseline"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/inlineDiff.ts",
+          "symbols": [
+            "InlineDiffRenderer",
+            "InlineDiffRenderer.apply"
+          ]
+        },
+        {
+          "path": "src/diff.ts",
+          "symbols": [
+            "changedPath",
+            "openChangedDiff"
+          ]
+        },
+        {
+          "path": "src/extension.ts",
+          "symbols": [
+            "activate"
+          ]
+        },
+        {
+          "path": "media/webview.js",
+          "symbols": [
+            "showTool",
+            "showVerificationReport"
+          ]
+        }
+      ],
+      "dom": [
+        {
+          "selector": "#diff-visible, #diff, .tool-diff",
+          "function": "showTool"
+        }
+      ],
+      "outbound": [
+        "openDiff"
+      ],
+      "inbound": [
+        "toolResult",
+        "verificationReport"
+      ],
+      "flow": [
+        "成功文件修改 → changedPath → baseline → InlineDiffRenderer；打开 Diff → coding-agent-checkpoint URI → 当前工作区校验 → vscode.diff"
+      ],
+      "invariants": [
+        "Diff URI 必须保留源 sessionId，切换会话后不得读取另一会话的基线。",
+        "装饰失败不能使 Agent 轮次失败；删除行不覆盖修改行。",
+        "无检查点基线时可回退 Git HEAD；无 Git 基线给出明确提示。"
+      ],
+      "tests": [
+        "quick-diff",
+        "quick-webview",
+        "diff-integration",
+        "integration",
+        "workbench-e2e"
+      ],
+      "dependsOn": [
+        "checkpoints",
+        "event-projection"
+      ],
+      "dsh": []
+    },
+    {
+      "id": "edit-conflicts",
+      "domain": "代码审查",
+      "name": "外部修改与未保存编辑器冲突",
+      "risk": "medium",
+      "summary": "在轮次开始记录文件时间戳，edit/write 前检查外部修改和脏编辑器，只警告不自动覆盖。",
+      "entry": {
+        "path": "src/conflicts.ts",
+        "symbols": [
+          "EditConflictMonitor",
+          "EditConflictMonitor.snapshot",
+          "EditConflictMonitor.watch",
+          "onEditConflict"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/agent.ts",
+          "symbols": [
+            "SessionRuntime.onNotification"
+          ]
+        },
+        {
+          "path": "src/extension.ts",
+          "symbols": [
+            "activate"
+          ]
+        },
+        {
+          "path": "media/webview.js",
+          "symbols": [
+            "append"
+          ]
+        }
+      ],
+      "outbound": [],
+      "inbound": [
+        "conflict"
+      ],
+      "flow": [
+        "turn snapshot → tool/call watch → 时间戳/脏文档检查 → VS Code warning + Webview conflict"
+      ],
+      "invariants": [
+        "警告不是恢复或许可；不得自动保存或覆盖任一版本。",
+        "重新打开同一文档并保存不应当作外部修改。",
+        "检查器异常要明确提示，不静默声称安全。",
+        "当前 conflict 无 sessionId；Webview 只记录控制台，VS Code 警告拥有实际展示，不能误称为聊天卡片。"
+      ],
+      "tests": [
+        "quick-webview",
+        "integration"
+      ],
+      "dependsOn": [
+        "event-projection"
+      ],
+      "dsh": []
+    },
+    {
+      "id": "approval",
+      "domain": "工具与安全",
+      "name": "只读模式与单次工具审批",
+      "risk": "high",
+      "summary": "权限通过 DSH 原生 /permission 命令实时写入当前会话日志并即时生效；只读模式的升级写入经模态确认，只允许一次或拒绝。",
+      "entry": {
+        "path": "src/approval.ts",
+        "symbols": [
+          "requestApproval"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/agent.ts",
+          "symbols": [
+            "SessionRuntime.setPermissionMode",
+            "SessionRuntime.applyPermissionToSession",
+            "SessionRuntime.start"
+          ]
+        },
+        {
+          "path": "src/agentController.ts",
+          "symbols": [
+            "AgentController.setPermissionMode"
+          ]
+        },
+        {
+          "path": "src/extension.ts",
+          "symbols": [
+            "activate"
+          ]
+        },
+        {
+          "path": "media/webview.js",
+          "symbols": [
+            "busy"
+          ]
+        }
+      ],
+      "dom": [
+        {
+          "selector": "#permissionMode",
+          "function": "busy"
+        }
+      ],
+      "outbound": [
+        "permissionMode"
+      ],
+      "inbound": [
+        "config",
+        "status",
+        "error"
+      ],
+      "flow": [
+        "Webview permissionMode → 保存工作区状态 → session/query 发送 /permission <preset> 命令 → DSH 追加 permission/preset 事件并更新沙箱与审批旋钮 → DSH approval/request → 单次允许/拒绝"
+      ],
+      "invariants": [
+        "运行中不能修改权限。",
+        "权限 preset 持久化在会话日志中，resume/rewind 后必须通过 /permission 命令重新对齐当前工作区模式。",
+        "rewind 截断日志会丢弃边界后的 permission/preset 事件，rewind 完成后必须重新应用。",
+        "不把一次许可扩展成整个会话许可。",
+        "不允许通过 Bash 绕过只读审批。",
+        "异步设置刷新不应当误判为拒绝。"
+      ],
+      "tests": [
+        "approval",
+        "integration"
+      ],
+      "dependsOn": [
+        "host-launch",
+        "session-lifecycle"
+      ],
+      "dsh": [
+        "sdk-transport"
+      ]
+    },
+    {
+      "id": "structured-questions",
+      "domain": "工具与安全",
+      "name": "DSH 结构化提问",
+      "risk": "medium",
+      "summary": "把模型提出的选项、多选和自定义文本问题映射到聊天，校验答案并解决 pending 请求。",
+      "entry": {
+        "path": "src/questions.ts",
+        "symbols": [
+          "QuestionBroker",
+          "QuestionBroker.ask",
+          "QuestionBroker.answer",
+          "QuestionBroker.cancel"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/agent.ts",
+          "symbols": [
+            "SessionRuntime.answerQuestions"
+          ]
+        },
+        {
+          "path": "media/webview.js",
+          "symbols": [
+            "showQuestions"
+          ]
+        }
+      ],
+      "dom": [
+        {
+          "selector": ".question, .question-title",
+          "function": "showQuestions"
+        }
+      ],
+      "outbound": [
+        "answerQuestions"
+      ],
+      "inbound": [
+        "questions",
+        "error"
+      ],
+      "flow": [
+        "SDK onUserQuestion → QuestionBroker.ask → Webview questions → answerQuestions → resolve 或 Host 关闭时 cancel"
+      ],
+      "invariants": [
+        "requestId 必须匹配当前 pending 问题；重复/过期答案不解决新请求。",
+        "答案数量、选项和多选约束需再次校验。",
+        "Host 关闭必须 resolve cancelled，不能留下悬空 Promise。"
+      ],
+      "tests": [
+        "question-probe"
+      ],
+      "dependsOn": [
+        "session-lifecycle"
+      ],
+      "dsh": [
+        "sdk-transport"
+      ]
+    },
+    {
+      "id": "verification",
+      "domain": "验证",
+      "name": "测试证据、失败定位与托管重跑",
+      "risk": "high",
+      "summary": "从真实 Bash 输出识别测试结果，定位失败源码，仅对覆盖原失败的精确重跑标记恢复。",
+      "entry": {
+        "path": "src/verification.ts",
+        "symbols": [
+          "VerificationTracker",
+          "VerificationTracker.record",
+          "VerificationTracker.report",
+          "VerificationTracker.rerunCommand"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/diagnostics.ts",
+          "symbols": [
+            "testSummary",
+            "testFailures",
+            "testRerunCommand"
+          ]
+        },
+        {
+          "path": "src/agent.ts",
+          "symbols": [
+            "SessionRuntime.publishVerification",
+            "SessionRuntime.rerunVerification"
+          ]
+        },
+        {
+          "path": "media/webview.js",
+          "symbols": [
+            "showTestResult",
+            "showVerificationReport"
+          ]
+        }
+      ],
+      "dom": [
+        {
+          "selector": ".test-result, #verification-report, .verification-failure, .rerun-tests",
+          "function": "showVerificationReport"
+        }
+      ],
+      "outbound": [
+        "rerunTests",
+        "openLocation"
+      ],
+      "inbound": [
+        "testResult",
+        "verificationReport"
+      ],
+      "flow": [
+        "tool/result bash → testSummary → VerificationTracker → 测试卡片/报告 → VS Code 终端执行目标命令 → 更新原失败状态"
+      ],
+      "invariants": [
+        "模型文字声称通过不算证据；失败退出码优先于 OK 文本。",
+        "不相关测试通过不能清除已有失败。",
+        "重跑位置限制在当前工作区，终端完成事件必须按 execution 关联。"
+      ],
+      "tests": [
+        "quick-webview",
+        "quick-checkpoint",
+        "integration",
+        "workbench-e2e",
+        "real-project"
+      ],
+      "dependsOn": [
+        "event-projection",
+        "diff-review"
+      ],
+      "dsh": []
+    },
+    {
+      "id": "diagnostics",
+      "domain": "可观测性",
+      "name": "错误分类、重试状态与日志",
+      "risk": "medium",
+      "summary": "展开 JSON-RPC 错误对象，区分模型/Host/工具/沙箱错误，保留重试和耗时线索。",
+      "entry": {
+        "path": "src/diagnostics.ts",
+        "symbols": [
+          "errorText",
+          "hostError",
+          "toolError",
+          "diagnostic"
+        ]
+      },
+      "modules": [
+        {
+          "path": "src/agent.ts",
+          "symbols": [
+            "SessionRuntime.start",
+            "SessionRuntime.onNotification"
+          ]
+        },
+        {
+          "path": "src/extension.ts",
+          "symbols": [
+            "activate"
+          ]
+        }
+      ],
+      "outbound": [],
+      "inbound": [
+        "error",
+        "status"
+      ],
+      "flow": [
+        "DSH/Host 异常 → errorText → 分类与建议 → Webview error；Coding Agent 输出通道保留详细事件和耗时"
+      ],
+      "invariants": [
+        "不得把对象显示为 [object Object]。",
+        "网络/模型 TIMEOUT 不误导为 Node 或源码路径错误。",
+        "日志不得包含凭据、完整代理认证 URL 或私密文件内容。"
+      ],
+      "tests": [
+        "quick-webview",
+        "integration"
+      ],
+      "dependsOn": [],
+      "dsh": [
+        "sdk-transport"
+      ]
+    },
+    {
+      "id": "test-infrastructure",
+      "domain": "工程效率",
+      "name": "分层测试与开发探针",
+      "risk": "medium",
+      "summary": "以快速 DOM/数据测试、真实 Electron 集成、真实项目 E2E 和最小探针分层验证功能。",
+      "entry": {
+        "path": "scripts/vscode-integration.cjs",
+        "symbols": [
+          "main"
+        ]
+      },
+      "modules": [
+        {
+          "path": "config/runtime-baseline.json",
+          "symbols": [
+            "node",
+            "dsh"
+          ]
+        },
+        {
+          "path": "scripts/runtime-baseline.cjs",
+          "symbols": [
+            "createBaseline",
+            "validateLock",
+            "main"
+          ]
+        },
+        {
+          "path": "scripts/prepare-node.cjs",
+          "symbols": [
+            "prepareNode",
+            "verifiedDownload"
+          ]
+        },
+        {
+          "path": "scripts/runtime-closure.cjs",
+          "symbols": [
+            "createClosure",
+            "collectClosure",
+            "inspectNative",
+            "stagedInventory",
+            "assertNoHostPaths"
+          ]
+        },
+        {
+          "path": "scripts/runtime-stage.cjs",
+          "symbols": [
+            "stage"
+          ]
+        },
+        {
+          "path": "scripts/runtime-native.cjs",
+          "symbols": [
+            "nativeProbe",
+            "packedInstall"
+          ]
+        },
+        {
+          "path": "scripts/runtime-native-probe.mjs",
+          "symbols": []
+        },
+        {
+          "path": "scripts/runtime-native-install-probe.mjs",
+          "symbols": []
+        },
+        {
+          "path": "scripts/runtime-native-suite.cjs",
+          "symbols": []
+        },
+        {
+          "path": "scripts/runtime-closure-suite.cjs",
+          "symbols": []
+        },
+        {
+          "path": "scripts/runtime-baseline-suite.cjs",
+          "symbols": []
+        },
+        {
+          "path": "scripts/runtime-launch-options-suite.cjs",
+          "symbols": []
+        },
+        {
+          "path": "scripts/runtime-launch-suite.cjs",
+          "symbols": []
+        },
+        {
+          "path": "scripts/vsix-package.cjs",
+          "symbols": [
+            "packageVsix",
+            "assertLicenses"
+          ]
+        },
+        {
+          "path": "scripts/runtime-licenses.cjs",
+          "symbols": [
+            "supplementLicenses",
+            "hasLicense",
+            "rules"
+          ]
+        },
+        {
+          "path": "scripts/runtime-licenses-suite.cjs",
+          "symbols": []
+        },
+        {
+          "path": "scripts/vsix-accept.cjs",
+          "symbols": [
+            "main"
+          ]
+        },
+        {
+          "path": "scripts/vsix-accept-suite.cjs",
+          "symbols": [
+            "modelAcceptance"
+          ]
+        },
+        {
+          "path": "scripts/vsix-security-suite.cjs",
+          "symbols": []
+        },
+        {
+          "path": "docs/RUNTIME_BASELINE.md",
+          "symbols": []
+        },
+        {
+          "path": "docs/RUNTIME_CLOSURE.md",
+          "symbols": []
+        },
+        {
+          "path": "docs/RUNTIME_DELIVERY_PLAN.md",
+          "symbols": []
+        },
+        {
+          "path": "build/dsh-production-closure.json",
+          "symbols": [
+            "artifacts"
+          ]
+        },
+        {
+          "path": "scripts/webview-suite.cjs",
+          "symbols": [
+            "async function run"
+          ]
+        },
+        {
+          "path": "scripts/session-runtime-suite.cjs",
+          "symbols": [
+            "async function run"
+          ]
+        },
+        {
+          "path": "scripts/checkpoint-suite.cjs",
+          "symbols": [
+            "async function run"
+          ]
+        },
+        {
+          "path": "scripts/checkpoint-baseline-suite.cjs",
+          "symbols": [
+            "run"
+          ]
+        },
+        {
+          "path": "scripts/diff-suite.cjs",
+          "symbols": []
+        },
+        {
+          "path": ".vscode/launch.json",
+          "symbols": [
+            "Run Coding Agent Extension"
+          ]
+        },
+        {
+          "path": "package.json",
+          "symbols": [
+            "scripts"
+          ]
+        }
+      ],
+      "outbound": [],
+      "inbound": [],
+      "flow": [
+        "npm run compile → 快速套件；VSCODE_AGENT_SUITE 选择集成脚本 → 隔离 DSH home/工作区 → 真实模型（仅标记测试）"
+      ],
+      "storage": [
+        ".vscode-agent-dev/dsh-test-* 临时 DSH home",
+        "测试专用工作区和 VS Code user-data；不删除交互式会话"
+      ],
+      "invariants": [
+        "快速测试不依赖模型或真实 VS Code。",
+        "真实测试明确写出模型/文件/网络副作用。",
+        "测试失败先读实际错误，不能用跳过或更宽断言掩盖。"
+      ],
+      "tests": [
+        "index",
+        "runtime-baseline",
+        "runtime-native"
+      ],
+      "dependsOn": [],
+      "dsh": [
+        "sdk-client"
+      ]
+    },
+    {
+      "id": "feature-index",
+      "domain": "工程效率",
+      "name": "功能索引与一致性校验",
+      "risk": "low",
+      "summary": "以功能条目关联模块、协议、存储、不变量、测试和 DSH 接口，并生成可检索的开发目录。",
+      "entry": {
+        "path": "docs/feature-catalog.json",
+        "symbols": [
+          "schemaVersion",
+          "features",
+          "integrations",
+          "tests"
+        ]
+      },
+      "modules": [
+        {
+          "path": "scripts/feature-index.cjs",
+          "symbols": [
+            "main",
+            "validateCatalog",
+            "renderIndex"
+          ]
+        },
+        {
+          "path": "docs/FEATURE_INDEX_MAINTENANCE.md",
+          "symbols": []
+        }
+      ],
+      "outbound": [],
+      "inbound": [],
+      "flow": [
+        "编辑 feature-catalog.json → npm run index:generate → 提交生成文档 → npm run index:check 防止漂移"
+      ],
+      "invariants": [
+        "功能 id 稳定，不因文件移动或文案调整改变。",
+        "登记路径、锚点、消息、功能依赖和测试引用必须可由脚本验证。",
+        "删除代码功能必须同时处理协议、存储、测试和索引；不能只删 UI。"
+      ],
+      "tests": [
+        "index"
+      ],
+      "dependsOn": [],
+      "dsh": []
+    }
+  ]
+}
