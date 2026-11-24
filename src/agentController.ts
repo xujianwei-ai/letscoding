@@ -448,6 +448,14 @@ export class AgentController implements vscode.Disposable {
 
   async run(prompt: string | SdkPromptContentBlock[], displayPrompt = typeof prompt === 'string' ? prompt : prompt.filter(b => b.type === 'text').map(b => b.text).join(' '), requestedId?: string, route?: { provider: string, model: string }): Promise<void> {
     this.requireTrust()
+    // Block sends when the catalog bootstrap placeholder is still selected.
+    // The placeholder (deepseek-official/deepseek-flash) is only for loading
+    // the model catalog; it cannot serve real requests without credentials.
+    const effectiveRoute = route ?? { provider: this.options().provider, model: this.options().model }
+    if (effectiveRoute.provider === 'deepseek-official' && effectiveRoute.model === 'deepseek-flash') {
+      this.publish({ type: 'error', text: '当前模型为占位符，无法发送。请在模型管理中添加 API Key，或选择其他已配置模型。' })
+      return
+    }
     const targetId = typeof requestedId === 'string' ? requestedId : this.selectedId
     let runtime = targetId !== undefined ? this.runtimes.get(targetId) : this.active()
     if (runtime === undefined) {

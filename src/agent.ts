@@ -169,6 +169,18 @@ export class SessionRuntime implements vscode.Disposable {
   /** Monotonic turn identity; stop() clears busy without letting a late start() finally clobber a newer turn. */
   private turnSerial = 0
 
+  /** 检测指定 provider 是否已配置凭据（使用临时 read-host，不干扰写 Host） */
+  private async hasProviderCredentials(provider: string): Promise<boolean> {
+    try {
+      return await this.readOnly(async harness => {
+        const config = await harness.client.providerConfig({ provider })
+        return config.hasCredential === true
+      })
+    } catch {
+      return false
+    }
+  }
+
   async start(): Promise<void> {
     if (this.busy) return
     // Capture the exact route selected at this run boundary; Host creation and
@@ -183,6 +195,13 @@ export class SessionRuntime implements vscode.Disposable {
     try {
       const options = this.options()
       if (options.cwd === undefined) throw new Error('请先打开一个单项目工作区，再发送编码任务。')
+      // 阻止使用未配置凭据的占位符模型
+      if (options.provider === 'deepseek-official' && options.model === 'deepseek-flash') {
+        const hasCredentials = await this.hasProviderCredentials('deepseek-official')
+        if (!hasCredentials) {
+          throw new Error('当前选择为占位符模型，请先在"添加模型服务"中配置 API Key，或选择其他已配置模型')
+        }
+      }
       if (this.harness !== undefined && !sameNetworkOptions(this.hostNetwork ?? {}, options)) {
         this.notify({ type: 'status', status: 'running', text: '正在应用新的模型网络设置并恢复当前会话…' })
         await this.closeHost()
